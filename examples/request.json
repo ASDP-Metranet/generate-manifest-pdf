@@ -1,0 +1,56 @@
+{
+  "document": {
+    "manifestId": "MNF-20260817-001",
+    "tanggal": "2026-08-17",
+    "namaKapal": "DHARMA RUCITRA",
+    "namaOperator": "DHARMA LAUTAN UTAMA",
+    "id_boarding": "B22608190999",
+    "approved_by_operator": "Dharma Lautan Utama",
+    "tanggal_approve_manifest": "2026-08-17T17:17:10",
+    "id_pkk": "PKK123213ABC"
+  },
+  "vehicles": [
+    {
+      "nomorKendaraan": "B1234ABC",
+      "golongan": "II",
+      "passengers": [
+        {
+          "nama": "MISDIN HERWAN",
+          "jenisKelamin": "L",
+          "usia": 30,
+          "alamatDomisili": "KAB. LAMPUNG UTARA",
+          "nomorIdentitas": "1234567890123456",
+          "keterangan": null
+        }
+      ]
+    },
+    {
+      "nomorKendaraan": "B5678XYZ",
+      "golongan": "IVA",
+      "passengers": [
+        {
+          "nama": "ARI WIBOWO",
+          "jenisKelamin": "L",
+          "usia": 38,
+          "alamatDomisili": "KOTA DEPOK",
+          "nomorIdentitas": "9876543210987654",
+          "keterangan": null
+        },
+        {
+          "nama": "FEBI CANDRA",
+          "jenisKelamin": "P",
+          "usia": 36,
+          "alamatDomisili": "KOTA CILEGON",
+          "nomorIdentitas": "1234567890987654",
+          "keterangan": null
+        }
+      ]
+    }
+  ],
+  "signature": {
+    "atasNama": "DHARMA LAUTAN UTAMA",
+    "jabatan": "Captain Kapal",
+    "namaKapal": "DHARMA RUCITRA",
+    "qrVerificationId": "MNF-20260817-001"
+  }
+}

@@ -1,0 +1,24 @@
+services:
+  manifest-pdf:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: manifest-pdf-service:1.1.0
+    container_name: manifest-pdf-service
+    restart: unless-stopped
+    init: true
+    ports:
+      - "${APP_BIND_IP:-127.0.0.1}:${APP_PORT:-8080}:8080"
+    environment:
+      JAVA_TOOL_OPTIONS: "${JAVA_TOOL_OPTIONS:--XX:MaxRAMPercentage=70.0 -Duser.timezone=Asia/Jakarta -Dfile.encoding=UTF-8}"
+      MANIFEST_STORAGE_PATH: /app/storage
+      MANIFEST_PUBLIC_BASE_URL: "${APP_PUBLIC_BASE_URL:-http://localhost:8080}"
+      MANIFEST_ACCESS_ZONE: "${MANIFEST_ACCESS_ZONE:-Asia/Jakarta}"
+    volumes:
+      # Persist on host even after docker compose down/recreate.
+      - ./storage:/app/storage
+    read_only: true
+    tmpfs:
+      - /tmp:rw,nosuid,size=256m
+    security_opt:
+      - no-new-privileges:true

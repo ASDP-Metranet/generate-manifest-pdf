@@ -14,6 +14,8 @@ services:
       MANIFEST_STORAGE_PATH: /app/storage
       MANIFEST_PUBLIC_BASE_URL: "${APP_PUBLIC_BASE_URL:-http://localhost:8080}"
       MANIFEST_ACCESS_ZONE: "${MANIFEST_ACCESS_ZONE:-Asia/Jakarta}"
+      MANIFEST_API_USERNAME: "${MANIFEST_API_USERNAME:?isi MANIFEST_API_USERNAME di .env}"
+      MANIFEST_API_PASSWORD: "${MANIFEST_API_PASSWORD:?isi MANIFEST_API_PASSWORD di .env}"
     volumes:
       # Persist on host even after docker compose down/recreate.
       - ./storage:/app/storage

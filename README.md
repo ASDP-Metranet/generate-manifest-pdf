@@ -64,8 +64,12 @@ APP_BIND_IP=127.0.0.1
 APP_PORT=8080
 APP_PUBLIC_BASE_URL=https://pdf.example.com
 MANIFEST_ACCESS_ZONE=Asia/Jakarta
+MANIFEST_API_USERNAME=ganti-username
+MANIFEST_API_PASSWORD=ganti-password
 JAVA_TOOL_OPTIONS=-XX:MaxRAMPercentage=70.0 -Duser.timezone=Asia/Jakarta -Dfile.encoding=UTF-8
 ```
+
+`MANIFEST_API_USERNAME` dan `MANIFEST_API_PASSWORD` wajib diisi; tanpa keduanya aplikasi menolak start. Jangan commit nilainya ke Git (`.env` sudah di-ignore).
 
 Nginx contoh (gunakan sertifikat HTTPS yang valid):
 
@@ -104,9 +108,12 @@ Lalu `docker compose up -d --force-recreate`.
 Headers:
 
 ```http
+Authorization: Basic base64(username:password)
 Content-Type: application/json
 Accept: application/json
 ```
+
+Endpoint ini memakai HTTP Basic Auth dengan kredensial dari `MANIFEST_API_USERNAME` dan `MANIFEST_API_PASSWORD`. Kredensial kosong atau salah: HTTP **401** dengan header `WWW-Authenticate`. Basic Auth hanya meng-encode kredensial (bukan enkripsi), jadi gunakan HTTPS di luar localhost. Endpoint `/files/...` tidak memakai Basic Auth karena dilindungi password tanggal.
 
 Body sama persis dengan skema sebelumnya (file lengkap: `examples/request.json`):
 
@@ -160,11 +167,12 @@ Perintah cURL:
 
 ```bash
 curl -sS -X POST http://127.0.0.1:8080/api/v1/manifests/generate-pdf \
+  -u "$MANIFEST_API_USERNAME:$MANIFEST_API_PASSWORD" \
   -H 'Content-Type: application/json' -H 'Accept: application/json' \
   --data-binary @examples/request.json
 ```
 
-Atau jalankan `bash examples/call-api.sh` (Linux/macOS), `./examples/call-api.ps1` (PowerShell).
+Atau jalankan `bash examples/call-api.sh` (Linux/macOS), `./examples/call-api.ps1` (PowerShell). Kedua skrip membaca `MANIFEST_API_USERNAME` dan `MANIFEST_API_PASSWORD` dari environment.
 
 ## 4. Buka URL dengan password
 
@@ -246,7 +254,8 @@ Jika URL respons masih `localhost`, edit `APP_PUBLIC_BASE_URL` di `.env` dan jal
 ```bash
 # Bila Java 25 & Maven tersedia tanpa Docker
 mvn clean test
+export MANIFEST_API_USERNAME=ganti-username MANIFEST_API_PASSWORD=ganti-password
 mvn spring-boot:run
 ```
 
-Unit test mencakup pembuatan PDF, QR payload, random filename, pembacaan storage, timezone WIB, dan penguncian setelah lima percobaan salah. **Pengujian end-to-end build Docker dan runtime HTTP perlu dilakukan di server**, karena lingkungan penyusunan project belum memiliki Docker/Java 25/Maven.
+Unit test mencakup pembuatan PDF, QR payload, random filename, pembacaan storage, timezone WIB, penguncian setelah lima percobaan salah, dan pemeriksaan Basic Auth. **Pengujian end-to-end build Docker dan runtime HTTP perlu dilakukan di server**, karena lingkungan penyusunan project belum memiliki Docker/Java 25/Maven.

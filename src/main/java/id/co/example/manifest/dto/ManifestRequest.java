@@ -26,7 +26,7 @@ public record ManifestRequest(
             @NotBlank @Size(max=80) String id_boarding,
             @NotBlank @Size(max=120) String approved_by_operator,
             @NotNull LocalDateTime tanggal_approve_manifest,
-            @NotBlank @Size(max=80) String id_pkk
+            @Size(max=80) String id_pkk
     ) {}
 
     public record VehicleData(

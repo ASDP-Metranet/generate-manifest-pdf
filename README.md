@@ -1,6 +1,6 @@
 # Manifest PDF Service — Java 25 + Spring Boot 4.1.1
 
-Menerima JSON manifest kendaraan/penumpang, membuat PDF A4 landscape dengan tabel sesuai template, membubuhkan QR JSON berisi `id_boarding`, `approved_by_operator`, `tanggal_approve_manifest`, `id_pkk`, lalu **menyimpan PDF ke storage lokal** dan mengembalikan **URL acak**. Saat URL dibuka, browser menampilkan formulir password **DDMMYYYY** dari **tanggal saat URL diakses (Asia/Jakarta/WIB)**. Setelah password benar, PDF muncul di browser.
+Menerima JSON manifest kendaraan/penumpang, membuat PDF A4 landscape dengan tabel sesuai template, dan membubuhkan QR JSON berisi `id_boarding`, `approved_by_operator`, `tanggal_approve_manifest`, `id_pkk` ketika `id_pkk` tersedia, lalu **menyimpan PDF ke storage lokal** dan mengembalikan **URL acak**. Saat URL dibuka, browser menampilkan formulir password **DDMMYYYY** dari **tanggal saat URL diakses (Asia/Jakarta/WIB)**. Setelah password benar, PDF muncul di browser.
 
 **PENTING:** Password tanggal sangat mudah ditebak. Random URL menyulitkan penemuan dokumen tetapi tidak menggantikan autentikasi. Untuk manifest yang memuat identitas pribadi, batasi akses melalui HTTPS, autentikasi API, firewall, logging akses, kebijakan retensi file, dan bila mungkin gunakan password independen yang kuat. Contoh ini tidak mengenkripsi PDF di storage dan tidak menggunakan PDF document password; proteksi berada pada endpoint HTML sebelum file diberikan.
 
@@ -151,6 +151,9 @@ Body sama persis dengan skema sebelumnya (file lengkap: `examples/request.json`)
 }
 ```
 
+Field `document.id_pkk` bersifat opsional. Jika field tidak dikirim, bernilai `null`,
+atau berupa string kosong, PDF tetap dibuat tetapi tanpa QR Code.
+
 Response HTTP **201** (contoh token berbeda pada setiap request):
 
 ```json
@@ -217,7 +220,8 @@ storage/
 
 ## 6. QR Code pada PDF
 
-Tetap berisi empat field dari request (`document`), bukan random URL:
+Jika `document.id_pkk` berisi nilai, QR Code memuat empat field dari request
+(`document`), bukan random URL:
 
 ```json
 {
@@ -227,6 +231,9 @@ Tetap berisi empat field dari request (`document`), bukan random URL:
   "id_pkk": "PKK123213ABC"
 }
 ```
+
+Jika `document.id_pkk` tidak dikirim, `null`, atau string kosong, bagian tanda tangan
+tetap ditampilkan tetapi QR Code tidak dibuat.
 
 ## 7. Operasional & troubleshooting
 

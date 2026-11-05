@@ -69,7 +69,9 @@ public class ManifestPdfService {
         }
 
         List<Row> rows = flattenRows(request);
-        String qrJson = buildQrJson(request.document());
+        String qrJson = shouldIncludeQr(request.document())
+                ? buildQrJson(request.document())
+                : null;
         try (PDDocument pdf = new PDDocument();
              ByteArrayOutputStream buffer = new ByteArrayOutputStream()) {
             int offset = 0;
@@ -208,31 +210,33 @@ public class ManifestPdfService {
         center(cs, NORMAL, 10f, center, 194f, "AN " + safe(s.atasNama()).toUpperCase(Locale.ROOT));
         center(cs, NORMAL, 9.5f, center, 179f,
                 safe(s.jabatan()) + " " + safe(s.namaKapal()));
-        float qrSize = 103f;
-        try {
-            BitMatrix bits = new QRCodeWriter().encode(qrJson, BarcodeFormat.QR_CODE, 0, 0,
-                    Map.of(EncodeHintType.ERROR_CORRECTION, ErrorCorrectionLevel.M,
-                           EncodeHintType.MARGIN, 2));
-            float module = qrSize / bits.getWidth();
-            float qrX = center - qrSize / 2f;
-            float qrY = 67f;
-            // One PDF rectangle per contiguous black run: crisp/scalable QR without image artifacts.
-            for (int yy = 0; yy < bits.getHeight(); yy++) {
-                int xx = 0;
-                while (xx < bits.getWidth()) {
-                    while (xx < bits.getWidth() && !bits.get(xx, yy)) xx++;
-                    int start = xx;
-                    while (xx < bits.getWidth() && bits.get(xx, yy)) xx++;
-                    if (start < xx) {
-                        cs.addRect(qrX + start * module,
-                                qrY + qrSize - (yy + 1) * module,
-                                (xx - start) * module + 0.015f, module + 0.015f);
-                        cs.fill();
+        if (qrJson != null) {
+            float qrSize = 103f;
+            try {
+                BitMatrix bits = new QRCodeWriter().encode(qrJson, BarcodeFormat.QR_CODE, 0, 0,
+                        Map.of(EncodeHintType.ERROR_CORRECTION, ErrorCorrectionLevel.M,
+                               EncodeHintType.MARGIN, 2));
+                float module = qrSize / bits.getWidth();
+                float qrX = center - qrSize / 2f;
+                float qrY = 67f;
+                // One PDF rectangle per contiguous black run: crisp/scalable QR without image artifacts.
+                for (int yy = 0; yy < bits.getHeight(); yy++) {
+                    int xx = 0;
+                    while (xx < bits.getWidth()) {
+                        while (xx < bits.getWidth() && !bits.get(xx, yy)) xx++;
+                        int start = xx;
+                        while (xx < bits.getWidth() && bits.get(xx, yy)) xx++;
+                        if (start < xx) {
+                            cs.addRect(qrX + start * module,
+                                    qrY + qrSize - (yy + 1) * module,
+                                    (xx - start) * module + 0.015f, module + 0.015f);
+                            cs.fill();
+                        }
                     }
                 }
+            } catch (WriterException e) {
+                throw new IOException("Gagal membuat QR Code manifest", e);
             }
-        } catch (WriterException e) {
-            throw new IOException("Gagal membuat QR Code manifest", e);
         }
         center(cs, BOLD, 9.8f, center, 54f,
                 safe(s.atasNama()).toUpperCase(Locale.ROOT));
@@ -277,6 +281,10 @@ public class ManifestPdfService {
         return normalized.replace('\u2013', '-').replace('\u2014', '-')
                 .replace('\u2018', '\'').replace('\u2019', '\'')
                 .replace('\u201C', '"').replace('\u201D', '"');
+    }
+
+    static boolean shouldIncludeQr(DocumentData document) {
+        return document.id_pkk() != null && !document.id_pkk().isBlank();
     }
 
     private float measure(PDFont f, float size, String value) throws IOException {

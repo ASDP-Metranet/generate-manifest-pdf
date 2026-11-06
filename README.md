@@ -1,6 +1,6 @@
 # Manifest PDF Service — Java 25 + Spring Boot 4.1.1
 
-Menerima JSON manifest kendaraan/penumpang, membuat PDF A4 landscape dengan tabel sesuai template, dan membubuhkan QR JSON berisi `id_boarding`, `approved_by_operator`, `tanggal_approve_manifest`, `id_pkk` ketika `id_pkk` tersedia, lalu **menyimpan PDF ke storage lokal** dan mengembalikan **URL acak**. Saat URL dibuka, browser menampilkan formulir password **DDMMYYYY** dari **tanggal saat URL diakses (Asia/Jakarta/WIB)**. Setelah password benar, PDF muncul di browser.
+Menerima JSON manifest kendaraan/penumpang, membuat PDF A4 portrait berisi daftar penumpang pada kendaraan, daftar penumpang pejalan kaki, daftar barang curah dan hewan, serta rekapitulasi, dan membubuhkan QR JSON berisi `id_boarding`, `approved_by_operator`, `tanggal_approve_manifest`, `id_pkk` ketika `id_pkk` tersedia, lalu **menyimpan PDF ke storage lokal** dan mengembalikan **URL acak**. Saat URL dibuka, browser menampilkan formulir password **DDMMYYYY** dari **tanggal saat URL diakses (Asia/Jakarta/WIB)**. Setelah password benar, PDF muncul di browser.
 
 **PENTING:** Password tanggal sangat mudah ditebak. Random URL menyulitkan penemuan dokumen tetapi tidak menggantikan autentikasi. Untuk manifest yang memuat identitas pribadi, batasi akses melalui HTTPS, autentikasi API, firewall, logging akses, kebijakan retensi file, dan bila mungkin gunakan password independen yang kuat. Contoh ini tidak mengenkripsi PDF di storage dan tidak menggunakan PDF document password; proteksi berada pada endpoint HTML sebelum file diberikan.
 
@@ -115,44 +115,66 @@ Accept: application/json
 
 Endpoint ini memakai HTTP Basic Auth dengan kredensial dari `MANIFEST_API_USERNAME` dan `MANIFEST_API_PASSWORD`. Kredensial kosong atau salah: HTTP **401** dengan header `WWW-Authenticate`. Basic Auth hanya meng-encode kredensial (bukan enkripsi), jadi gunakan HTTPS di luar localhost. Endpoint `/files/...` tidak memakai Basic Auth karena dilindungi password tanggal.
 
-Body sama persis dengan skema sebelumnya (file lengkap: `examples/request.json`):
+Body (file lengkap: `examples/request.json`):
 
 ```json
 {
   "document": {
-    "manifestId": "MNF-20260817-001",
-    "tanggal": "2026-08-17",
-    "namaKapal": "DHARMA RUCITRA",
+    "manifestId": "MNF-20261029-001",
+    "tanggal": "2026-10-29",
+    "namaKapal": "KMP. PORA PORA",
     "namaOperator": "DHARMA LAUTAN UTAMA",
     "id_boarding": "B22608190999",
     "approved_by_operator": "Dharma Lautan Utama",
-    "tanggal_approve_manifest": "2026-08-17T17:17:10",
-    "id_pkk": "PKK123213ABC"
+    "tanggal_approve_manifest": "2026-10-29T17:17:10",
+    "id_pkk": "PKK123213ABC",
+    "dermaga": "Dermaga 1",
+    "waktuTiba": null,
+    "waktuBerangkat": "22:24"
   },
   "vehicles": [
     {
-      "nomorKendaraan": "B1234ABC",
-      "golongan": "II",
+      "nomorKendaraan": "N1234QA",
+      "golongan": "IV - PENUMPANG",
       "passengers": [
         {
-          "nama": "MISDIN HERWAN", "jenisKelamin": "L", "usia": 30,
-          "alamatDomisili": "KAB. LAMPUNG UTARA",
-          "nomorIdentitas": "1234567890123456", "keterangan": null
+          "nama": "MUHAMMAD ABDILLAH", "jenisKelamin": "L", "usia": 25,
+          "alamatDomisili": "KOTA BOGOR",
+          "nomorIdentitas": "3271041303010018", "kategori": "PENUMPANG DEWASA"
         }
       ]
+    }
+  ],
+  "pedestrians": [
+    {
+      "nama": "SITI AMINAH", "jenisKelamin": "P", "usia": 28,
+      "alamatDomisili": "KOTA CILEGON",
+      "nomorIdentitas": "3672010101980001", "kategori": "PENUMPANG DEWASA"
+    }
+  ],
+  "cargo": [
+    {
+      "golongan": "HEWAN", "nama": "SAPI", "alamatDomisili": "KOTA BOGOR",
+      "nomorIdentitas": "3271041303010018", "qty": 3
     }
   ],
   "signature": {
     "atasNama": "DHARMA LAUTAN UTAMA",
     "jabatan": "Captain Kapal",
-    "namaKapal": "DHARMA RUCITRA",
-    "qrVerificationId": "MNF-20260817-001"
+    "namaKapal": "KMP. PORA PORA",
+    "qrVerificationId": "MNF-20261029-001"
   }
 }
 ```
 
-Field `document.id_pkk` bersifat opsional. Jika field tidak dikirim, bernilai `null`,
-atau berupa string kosong, PDF tetap dibuat tetapi tanpa QR Code.
+Aturan field:
+
+- `vehicles`, `pedestrians`, dan `cargo` opsional, tetapi minimal salah satunya harus berisi data. Daftar yang kosong tetap ditampilkan sebagai tabel berisi header saja.
+- `passengers[].kategori` dan `pedestrians[].kategori` opsional. Nilainya tampil di kolom Golongan dan menjadi kelompok pada rekap. Jika kosong, kolom Golongan memakai golongan kendaraan dan rekap menghitungnya sebagai Penumpang Dewasa.
+- `document.dermaga`, `document.waktuTiba`, dan `document.waktuBerangkat` opsional dan hanya tampil pada rekap.
+- `document.id_pkk` opsional. Jika field tidak dikirim, bernilai `null`, atau berupa string kosong, PDF tetap dibuat tetapi tanpa QR Code.
+
+Angka pada rekap dihitung oleh server dari data request. Jumlah Hewan dan Curah adalah total `cargo[].qty`, dan Jumlah Penumpang adalah pejalan kaki ditambah penumpang dalam kendaraan.
 
 Response HTTP **201** (contoh token berbeda pada setiap request):
 
@@ -232,7 +254,7 @@ Jika `document.id_pkk` berisi nilai, QR Code memuat empat field dari request
 }
 ```
 
-Jika `document.id_pkk` tidak dikirim, `null`, atau string kosong, bagian tanda tangan
+Tanda tangan dan QR Code berada di bagian bawah tabel rekapitulasi. Jika `document.id_pkk` tidak dikirim, `null`, atau string kosong, bagian tanda tangan
 tetap ditampilkan tetapi QR Code tidak dibuat.
 
 ## 7. Operasional & troubleshooting

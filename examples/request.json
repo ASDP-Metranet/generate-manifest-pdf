@@ -1,56 +1,63 @@
 {
   "document": {
-    "manifestId": "MNF-20260817-001",
-    "tanggal": "2026-08-17",
-    "namaKapal": "DHARMA RUCITRA",
+    "manifestId": "MNF-20261029-001",
+    "tanggal": "2026-10-29",
+    "namaKapal": "KMP. PORA PORA",
     "namaOperator": "DHARMA LAUTAN UTAMA",
     "id_boarding": "B22608190999",
     "approved_by_operator": "Dharma Lautan Utama",
-    "tanggal_approve_manifest": "2026-08-17T17:17:10",
-    "id_pkk": "PKK123213ABC"
+    "tanggal_approve_manifest": "2026-10-29T17:17:10",
+    "id_pkk": "PKK123213ABC",
+    "dermaga": "Dermaga 1",
+    "waktuTiba": null,
+    "waktuBerangkat": "22:24"
   },
   "vehicles": [
     {
-      "nomorKendaraan": "B1234ABC",
-      "golongan": "II",
+      "nomorKendaraan": "N1234QA",
+      "golongan": "IV - PENUMPANG",
       "passengers": [
         {
-          "nama": "MISDIN HERWAN",
+          "nama": "MUHAMMAD ABDILLAH",
           "jenisKelamin": "L",
-          "usia": 30,
-          "alamatDomisili": "KAB. LAMPUNG UTARA",
-          "nomorIdentitas": "1234567890123456",
-          "keterangan": null
-        }
-      ]
-    },
-    {
-      "nomorKendaraan": "B5678XYZ",
-      "golongan": "IVA",
-      "passengers": [
-        {
-          "nama": "ARI WIBOWO",
-          "jenisKelamin": "L",
-          "usia": 38,
-          "alamatDomisili": "KOTA DEPOK",
-          "nomorIdentitas": "9876543210987654",
-          "keterangan": null
+          "usia": 25,
+          "alamatDomisili": "KOTA BOGOR",
+          "nomorIdentitas": "3271041303010018",
+          "kategori": "PENUMPANG DEWASA"
         },
         {
-          "nama": "FEBI CANDRA",
-          "jenisKelamin": "P",
-          "usia": 36,
-          "alamatDomisili": "KOTA CILEGON",
-          "nomorIdentitas": "1234567890987654",
-          "keterangan": null
+          "nama": "JOKO PRASETYO",
+          "jenisKelamin": "L",
+          "usia": 31,
+          "alamatDomisili": "KAB. BANYUWANGI",
+          "nomorIdentitas": "3510201809950004",
+          "kategori": "PENUMPANG DEWASA"
+        },
+        {
+          "nama": "ANGGREAN SENDY",
+          "jenisKelamin": "L",
+          "usia": 31,
+          "alamatDomisili": "KAB. BANYUWANGI",
+          "nomorIdentitas": "3510190108950006",
+          "kategori": "PENUMPANG DEWASA"
+        },
+        {
+          "nama": "IQBAL KURRIANA PUTRA",
+          "jenisKelamin": "L",
+          "usia": 23,
+          "alamatDomisili": "KAB. PROBOLINGGO",
+          "nomorIdentitas": "3513181103030002",
+          "kategori": null
         }
       ]
     }
   ],
+  "pedestrians": [],
+  "cargo": [],
   "signature": {
     "atasNama": "DHARMA LAUTAN UTAMA",
-    "jabatan": "Captain Kapal",
-    "namaKapal": "DHARMA RUCITRA",
-    "qrVerificationId": "MNF-20260817-001"
+    "jabatan": "Caption Kapal",
+    "namaKapal": "Dharma Kecitra",
+    "qrVerificationId": "MNF-20261029-001"
   }
 }

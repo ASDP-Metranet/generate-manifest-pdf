@@ -1,6 +1,7 @@
 package id.co.example.manifest.dto;
 
 import jakarta.validation.Valid;
+import jakarta.validation.constraints.AssertTrue;
 import jakarta.validation.constraints.Max;
 import jakarta.validation.constraints.Min;
 import jakarta.validation.constraints.NotBlank;
@@ -12,12 +13,25 @@ import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.List;
 
-/** JSON contract: same structure and field names as the agreed manifest payload. */
+/** JSON contract: vehicles, pedestrians and cargo are optional lists, but at least one must have data. */
 public record ManifestRequest(
         @NotNull @Valid DocumentData document,
-        @NotEmpty @Size(max = 10000) List<@NotNull @Valid VehicleData> vehicles,
+        @Size(max = 10000) List<@NotNull @Valid VehicleData> vehicles,
+        @Size(max = 10000) List<@NotNull @Valid PassengerData> pedestrians,
+        @Size(max = 10000) List<@NotNull @Valid CargoData> cargo,
         @NotNull @Valid SignatureData signature
 ) {
+    public ManifestRequest {
+        vehicles = vehicles == null ? List.of() : vehicles;
+        pedestrians = pedestrians == null ? List.of() : pedestrians;
+        cargo = cargo == null ? List.of() : cargo;
+    }
+
+    @AssertTrue(message = "vehicles, pedestrians, atau cargo harus berisi minimal satu data")
+    public boolean isManifestFilled() {
+        return !vehicles.isEmpty() || !pedestrians.isEmpty() || !cargo.isEmpty();
+    }
+
     public record DocumentData(
             @NotBlank @Size(max=80) String manifestId,
             @NotNull LocalDate tanggal,
@@ -26,7 +40,10 @@ public record ManifestRequest(
             @NotBlank @Size(max=80) String id_boarding,
             @NotBlank @Size(max=120) String approved_by_operator,
             @NotNull LocalDateTime tanggal_approve_manifest,
-            @Size(max=80) String id_pkk
+            @Size(max=80) String id_pkk,
+            @Size(max=120) String dermaga,
+            @Size(max=20) String waktuTiba,
+            @Size(max=20) String waktuBerangkat
     ) {}
 
     public record VehicleData(
@@ -41,7 +58,15 @@ public record ManifestRequest(
             @NotNull @Min(0) @Max(130) Integer usia,
             @Size(max=180) String alamatDomisili,
             @Size(max=100) String nomorIdentitas,
-            @Size(max=150) String keterangan
+            @Size(max=60) String kategori
+    ) {}
+
+    public record CargoData(
+            @NotBlank @Size(max=60) String golongan,
+            @NotBlank @Size(max=150) String nama,
+            @Size(max=180) String alamatDomisili,
+            @Size(max=100) String nomorIdentitas,
+            @NotNull @Min(1) @Max(1000000) Integer qty
     ) {}
 
     public record SignatureData(

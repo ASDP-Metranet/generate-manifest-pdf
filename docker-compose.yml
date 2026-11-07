@@ -16,6 +16,9 @@ services:
       MANIFEST_ACCESS_ZONE: "${MANIFEST_ACCESS_ZONE:-Asia/Jakarta}"
       MANIFEST_API_USERNAME: "${MANIFEST_API_USERNAME:?isi MANIFEST_API_USERNAME di .env}"
       MANIFEST_API_PASSWORD: "${MANIFEST_API_PASSWORD:?isi MANIFEST_API_PASSWORD di .env}"
+      MANIFEST_DB_URL: "${MANIFEST_DB_URL:?isi MANIFEST_DB_URL di .env}"
+      MANIFEST_DB_USERNAME: "${MANIFEST_DB_USERNAME:?isi MANIFEST_DB_USERNAME di .env}"
+      MANIFEST_DB_PASSWORD: "${MANIFEST_DB_PASSWORD:?isi MANIFEST_DB_PASSWORD di .env}"
     volumes:
       # Persist on host even after docker compose down/recreate.
       - ./storage:/app/storage

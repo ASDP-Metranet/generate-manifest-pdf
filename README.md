@@ -278,7 +278,31 @@ sudo chmod 700 storage
 
 Jika URL respons masih `localhost`, edit `APP_PUBLIC_BASE_URL` di `.env` dan jalankan `docker compose up -d --force-recreate`.
 
-## 8. Testing
+## 8. Cek data manifest di dock_ship
+
+**GET** `/checkmanifets` (alias `/checkmanifest`), memakai Basic Auth yang sama dengan `generate-pdf`.
+
+| Parameter | Kolom `dock_ship` |
+| --- | --- |
+| `id` | `id` |
+| `branch_id` | `branch_id` |
+| `harbour_id` | `harbor_id` |
+| `route_id` | `route_id` |
+
+Semua parameter wajib. Baris dianggap ditemukan hanya jika keempat nilainya cocok.
+
+```bash
+curl -sS -u "$MANIFEST_API_USERNAME:$MANIFEST_API_PASSWORD" \
+  "http://127.0.0.1:8080/checkmanifets?id=ID_DOCK_SHIP&branch_id=1011&harbour_id=348&route_id=5510"
+```
+
+Response HTTP **200** berisi `{"found": true, "data": { ...kolom dock_ship... }}`, atau `{"found": false, "data": null}` jika tidak ada. Parameter kosong atau tidak valid: HTTP **400**. Kredensial salah: HTTP **401**. Database tidak dapat diakses: HTTP **503**.
+
+Koneksi database diatur lewat `MANIFEST_DB_URL`, `MANIFEST_DB_USERNAME`, dan `MANIFEST_DB_PASSWORD` di `.env`. Ketiganya wajib diisi, dan koneksi dibuka dalam mode read-only.
+
+Query memakai Spring Data JPA (Hibernate): entity `DockShip` dan method `DockShipRepository.findByIdAndBranchIdAndHarborIdAndRouteId`, tanpa SQL manual. Entity ditandai `@Immutable`, `ddl-auto=none`, dan repository hanya punya method baca, jadi aplikasi tidak pernah membuat, mengubah, atau menghapus data maupun tabel.
+
+## 9. Testing
 
 ```bash
 # Bila Java 25 & Maven tersedia tanpa Docker

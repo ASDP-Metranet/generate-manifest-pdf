@@ -1,6 +1,6 @@
 # syntax=docker/dockerfile:1
-# Tahap 1: build JAR dengan Java 25 & Maven. Docker akan menjalankan unit test.
-FROM maven:3.9-eclipse-temurin-25-noble AS build
+# Tahap 1: build JAR dengan Java 21 & Maven 3.9.6 (versi dikunci). Docker akan menjalankan unit test.
+FROM maven:3.9.6-eclipse-temurin-21-jammy AS build
 WORKDIR /workspace
 
 # Cache dependencies ketika source code berubah tetapi pom.xml tetap.
@@ -10,8 +10,8 @@ RUN mvn -B -ntp -DskipTests dependency:go-offline
 COPY src ./src
 RUN mvn -B -ntp clean verify
 
-# Tahap 2: runtime kecil, hanya Java 25 JRE, tanpa Maven dan source code.
-FROM eclipse-temurin:25-jre-noble
+# Tahap 2: runtime kecil, hanya Java 21 JRE, tanpa Maven dan source code.
+FROM eclipse-temurin:21-jre-noble
 
 # Gunakan user non-root ketika menjalankan Spring Boot.
 RUN groupadd --system --gid 10001 appgroup \

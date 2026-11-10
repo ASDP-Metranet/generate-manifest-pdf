@@ -1,4 +1,4 @@
-# Manifest PDF Service — Java 25 + Spring Boot 4.1.1
+# Manifest PDF Service — Java 21 + Spring Boot 4.1.1
 
 Menerima JSON manifest kendaraan/penumpang, membuat PDF A4 portrait berisi daftar penumpang pada kendaraan, daftar penumpang pejalan kaki, daftar barang curah dan hewan, serta rekapitulasi, dan membubuhkan QR JSON berisi `id_boarding`, `approved_by_operator`, `tanggal_approve_manifest`, `id_pkk` ketika `id_pkk` tersedia, lalu **menyimpan PDF ke storage lokal** dan mengembalikan **URL acak**. Saat URL dibuka, browser menampilkan formulir password **DDMMYYYY** dari **tanggal saat URL diakses (Asia/Jakarta/WIB)**. Setelah password benar, PDF muncul di browser.
 
@@ -298,17 +298,30 @@ curl -sS -u "$MANIFEST_API_USERNAME:$MANIFEST_API_PASSWORD" \
 
 Response HTTP **200** berisi `{"found": true, "data": { ...kolom dock_ship... }}`, atau `{"found": false, "data": null}` jika tidak ada. Parameter kosong atau tidak valid: HTTP **400**. Kredensial salah: HTTP **401**. Database tidak dapat diakses: HTTP **503**.
 
-Koneksi database diatur lewat `MANIFEST_DB_URL`, `MANIFEST_DB_USERNAME`, dan `MANIFEST_DB_PASSWORD` di `.env`. Ketiganya wajib diisi, dan koneksi dibuka dalam mode read-only.
+### Manifest not approve
 
-Query memakai Spring Data JPA (Hibernate): entity `DockShip` dan method `DockShipRepository.findByIdAndBranchIdAndHarborIdAndRouteId`, tanpa SQL manual. Entity ditandai `@Immutable`, `ddl-auto=none`, dan repository hanya punya method baca, jadi aplikasi tidak pernah membuat, mengubah, atau menghapus data maupun tabel.
+**POST** `/manitfestnotapprove?id={id}` (alias `/manifestnotapprove`), memakai Basic Auth yang sama. Mengubah `dock_ship.approve_manifest` menjadi `0` untuk baris dengan `id` tersebut; kolom lain tidak diubah.
+
+```bash
+curl -sS -X POST -u "$MANIFEST_API_USERNAME:$MANIFEST_API_PASSWORD" \
+  "http://127.0.0.1:8080/manitfestnotapprove?id=ID_DOCK_SHIP"
+```
+
+Response HTTP **200** `{"id": "...", "updated": true, "approve_manifest": 0}`, termasuk jika nilainya sudah `0`. `id` tidak ada: HTTP **404** `{"updated": false, "approve_manifest": null}`. `id` kosong: HTTP **400**. Database tidak dapat diakses: HTTP **503**.
+
+### Database
+
+Koneksi database diatur lewat `MANIFEST_DB_URL`, `MANIFEST_DB_USERNAME`, dan `MANIFEST_DB_PASSWORD` di `.env`. Ketiganya wajib diisi.
+
+Query memakai Spring Data JPA (Hibernate), tanpa SQL manual: entity `DockShip` dan `DockShipRepository`. Repository hanya punya method cek (transaksi read-only) dan reset `approve_manifest`; tidak ada method simpan atau hapus, dan `ddl-auto=none` sehingga struktur tabel tidak pernah diubah.
 
 ## 9. Testing
 
 ```bash
-# Bila Java 25 & Maven tersedia tanpa Docker
+# Bila JDK 21 (misalnya Oracle JDK 21) & Maven 3.9.6 tersedia tanpa Docker
 mvn clean test
 export MANIFEST_API_USERNAME=ganti-username MANIFEST_API_PASSWORD=ganti-password
 mvn spring-boot:run
 ```
 
-Unit test mencakup pembuatan PDF, QR payload, random filename, pembacaan storage, timezone WIB, penguncian setelah lima percobaan salah, dan pemeriksaan Basic Auth. **Pengujian end-to-end build Docker dan runtime HTTP perlu dilakukan di server**, karena lingkungan penyusunan project belum memiliki Docker/Java 25/Maven.
+Unit test mencakup pembuatan PDF, QR payload, random filename, pembacaan storage, timezone WIB, penguncian setelah lima percobaan salah, dan pemeriksaan Basic Auth. **Pengujian end-to-end build Docker dan runtime HTTP perlu dilakukan di server**, karena lingkungan penyusunan project belum memiliki Docker/Java 21/Maven.

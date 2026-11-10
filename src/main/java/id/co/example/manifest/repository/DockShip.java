@@ -5,13 +5,14 @@ import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.Id;
 import jakarta.persistence.Table;
-import org.hibernate.annotations.Immutable;
 
 import java.time.LocalDateTime;
 
-/** Read-only mapping of dock_ship. JSON names keep the database column names. */
+/**
+ * Mapping of dock_ship. JSON names keep the database column names. There are no setters:
+ * the only write is DockShipRepository.resetApproveManifest.
+ */
 @Entity
-@Immutable
 @Table(name = "dock_ship")
 public class DockShip {
     @Id

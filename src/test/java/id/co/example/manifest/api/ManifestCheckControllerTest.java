@@ -7,10 +7,15 @@ import org.springframework.dao.DataAccessResourceFailureException;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.setup.MockMvcBuilders;
 
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Optional;
 import java.util.function.Supplier;
+import java.util.function.ToIntFunction;
 
+import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
@@ -65,8 +70,58 @@ class ManifestCheckControllerTest {
                 .andExpect(status().isServiceUnavailable());
     }
 
+    @Test
+    void resetApproveManifestUpdatesExistingRow() throws Exception {
+        List<String> updatedIds = new ArrayList<>();
+        mvc(Optional::empty, id -> { updatedIds.add(id); return 1; })
+                .perform(post("/manitfestnotapprove").param("id", "ABC"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.id").value("ABC"))
+                .andExpect(jsonPath("$.updated").value(true))
+                .andExpect(jsonPath("$.approve_manifest").value(0));
+        assertEquals(List.of("ABC"), updatedIds);
+    }
+
+    @Test
+    void resetApproveManifestReportsUnknownId() throws Exception {
+        mvc(Optional::empty, id -> 0)
+                .perform(post("/manitfestnotapprove").param("id", "TIDAKADA"))
+                .andExpect(status().isNotFound())
+                .andExpect(jsonPath("$.updated").value(false))
+                .andExpect(jsonPath("$.approve_manifest").isEmpty());
+    }
+
+    @Test
+    void resetApproveManifestRequiresIdAndPost() throws Exception {
+        MockMvc mvc = mvc(Optional::empty, id -> { throw new AssertionError("must not update"); });
+        mvc.perform(post("/manitfestnotapprove")).andExpect(status().isBadRequest());
+        mvc.perform(get("/manitfestnotapprove?id=ABC")).andExpect(status().isMethodNotAllowed());
+    }
+
+    @Test
+    void resetApproveManifestDatabaseFailureReturnsServiceUnavailable() throws Exception {
+        mvc(Optional::empty, id -> { throw new DataAccessResourceFailureException("down"); })
+                .perform(post("/manitfestnotapprove").param("id", "ABC"))
+                .andExpect(status().isServiceUnavailable());
+    }
+
     private static MockMvc mvc(Supplier<Optional<DockShip>> result) {
-        DockShipRepository repository = (id, branchId, harborId, routeId) -> result.get();
+        return mvc(result, id -> { throw new AssertionError("must not update"); });
+    }
+
+    private static MockMvc mvc(Supplier<Optional<DockShip>> result, ToIntFunction<String> reset) {
+        DockShipRepository repository = new DockShipRepository() {
+            @Override
+            public Optional<DockShip> findByIdAndBranchIdAndHarborIdAndRouteId(
+                    String id, Long branchId, Long harborId, Long routeId) {
+                return result.get();
+            }
+
+            @Override
+            public int resetApproveManifest(String id) {
+                return reset.applyAsInt(id);
+            }
+        };
         return MockMvcBuilders.standaloneSetup(new ManifestCheckController(repository)).build();
     }
 }

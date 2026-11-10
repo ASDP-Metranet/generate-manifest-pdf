@@ -20,6 +20,7 @@ public class ApiSecurityConfig implements WebMvcConfigurer {
     @Override
     public void addInterceptors(InterceptorRegistry registry) {
         registry.addInterceptor(basicAuth)
-                .addPathPatterns("/api/v1/manifests/generate-pdf", "/checkmanifets", "/checkmanifest");
+                .addPathPatterns("/api/v1/manifests/generate-pdf", "/checkmanifets", "/checkmanifest",
+                        "/manitfestnotapprove", "/manifestnotapprove");
     }
 }

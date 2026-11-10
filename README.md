@@ -65,11 +65,12 @@ APP_PORT=8080
 APP_PUBLIC_BASE_URL=https://pdf.example.com
 MANIFEST_ACCESS_ZONE=Asia/Jakarta
 MANIFEST_API_USERNAME=ganti-username
-MANIFEST_API_PASSWORD=ganti-password
+MANIFEST_API_PASSWORD_HASH='$2y$12$...hash-bcrypt...'
+MANIFEST_API_AUTHORITIES=MANIFEST_GENERATE,MANIFEST_CHECK
 JAVA_TOOL_OPTIONS=-XX:MaxRAMPercentage=70.0 -Duser.timezone=Asia/Jakarta -Dfile.encoding=UTF-8
 ```
 
-`MANIFEST_API_USERNAME` dan `MANIFEST_API_PASSWORD` wajib diisi; tanpa keduanya aplikasi menolak start. Jangan commit nilainya ke Git (`.env` sudah di-ignore).
+`MANIFEST_API_USERNAME`, `MANIFEST_API_PASSWORD_HASH`, dan `MANIFEST_API_AUTHORITIES` wajib diisi; tanpa ketiganya aplikasi menolak start. Cara membuat hash ada di bagian **9. Autentikasi**. Jangan commit nilainya ke Git (`.env` sudah di-ignore).
 
 Nginx contoh (gunakan sertifikat HTTPS yang valid):
 
@@ -113,7 +114,7 @@ Content-Type: application/json
 Accept: application/json
 ```
 
-Endpoint ini memakai HTTP Basic Auth dengan kredensial dari `MANIFEST_API_USERNAME` dan `MANIFEST_API_PASSWORD`. Kredensial kosong atau salah: HTTP **401** dengan header `WWW-Authenticate`. Basic Auth hanya meng-encode kredensial (bukan enkripsi), jadi gunakan HTTPS di luar localhost. Endpoint `/files/...` tidak memakai Basic Auth karena dilindungi password tanggal.
+Endpoint ini memakai HTTP Basic Auth dan membutuhkan authority `MANIFEST_GENERATE` (lihat bagian **9. Autentikasi**). Endpoint `/files/...` tidak memakai Basic Auth karena dilindungi password tanggal.
 
 Body (file lengkap: `examples/request.json`):
 
@@ -192,12 +193,12 @@ Perintah cURL:
 
 ```bash
 curl -sS -X POST http://127.0.0.1:8080/api/v1/manifests/generate-pdf \
-  -u "$MANIFEST_API_USERNAME:$MANIFEST_API_PASSWORD" \
+  -u "$API_USER:$API_PASSWORD" \
   -H 'Content-Type: application/json' -H 'Accept: application/json' \
   --data-binary @examples/request.json
 ```
 
-Atau jalankan `bash examples/call-api.sh` (Linux/macOS), `./examples/call-api.ps1` (PowerShell). Kedua skrip membaca `MANIFEST_API_USERNAME` dan `MANIFEST_API_PASSWORD` dari environment.
+Atau jalankan `bash examples/call-api.sh` (Linux/macOS), `./examples/call-api.ps1` (PowerShell). Kedua skrip membaca `MANIFEST_API_USERNAME` dan `MANIFEST_API_PASSWORD` (password asli milik client, bukan hash) dari environment di komputer client.
 
 ## 4. Buka URL dengan password
 
@@ -280,7 +281,7 @@ Jika URL respons masih `localhost`, edit `APP_PUBLIC_BASE_URL` di `.env` dan jal
 
 ## 8. Cek data manifest di dock_ship
 
-**GET** `/checkmanifets` (alias `/checkmanifest`), memakai Basic Auth yang sama dengan `generate-pdf`.
+**GET** `/checkmanifets` (alias `/checkmanifest`), memakai Basic Auth dengan authority `MANIFEST_CHECK`.
 
 | Parameter | Kolom `dock_ship` |
 | --- | --- |
@@ -292,18 +293,18 @@ Jika URL respons masih `localhost`, edit `APP_PUBLIC_BASE_URL` di `.env` dan jal
 Semua parameter wajib. Baris dianggap ditemukan hanya jika keempat nilainya cocok.
 
 ```bash
-curl -sS -u "$MANIFEST_API_USERNAME:$MANIFEST_API_PASSWORD" \
+curl -sS -u "$API_USER:$API_PASSWORD" \
   "http://127.0.0.1:8080/checkmanifets?id=ID_DOCK_SHIP&branch_id=1011&harbour_id=348&route_id=5510"
 ```
 
-Response HTTP **200** berisi `{"found": true, "data": { ...kolom dock_ship... }}`, atau `{"found": false, "data": null}` jika tidak ada. Parameter kosong atau tidak valid: HTTP **400**. Kredensial salah: HTTP **401**. Database tidak dapat diakses: HTTP **503**.
+Response HTTP **200** berisi `{"found": true, "data": { ...kolom dock_ship... }}`, atau `{"found": false, "data": null}` jika tidak ada. Parameter kosong atau tidak valid: HTTP **400**. Kredensial salah: HTTP **401**. Tanpa authority: HTTP **403**. Database tidak dapat diakses: HTTP **503**.
 
 ### Manifest not approve
 
-**POST** `/manitfestnotapprove?id={id}` (alias `/manifestnotapprove`), memakai Basic Auth yang sama. Mengubah `dock_ship.approve_manifest` menjadi `0` untuk baris dengan `id` tersebut; kolom lain tidak diubah.
+**POST** `/manitfestnotapprove?id={id}` (alias `/manifestnotapprove`), memakai Basic Auth dengan authority `MANIFEST_APPROVAL_RESET`. Mengubah `dock_ship.approve_manifest` menjadi `0` untuk baris dengan `id` tersebut; kolom lain tidak diubah.
 
 ```bash
-curl -sS -X POST -u "$MANIFEST_API_USERNAME:$MANIFEST_API_PASSWORD" \
+curl -sS -X POST -u "$API_USER:$API_PASSWORD" \
   "http://127.0.0.1:8080/manitfestnotapprove?id=ID_DOCK_SHIP"
 ```
 
@@ -315,13 +316,85 @@ Koneksi database diatur lewat `MANIFEST_DB_URL`, `MANIFEST_DB_USERNAME`, dan `MA
 
 Query memakai Spring Data JPA (Hibernate), tanpa SQL manual: entity `DockShip` dan `DockShipRepository`. Repository hanya punya method cek (transaksi read-only) dan reset `approve_manifest`; tidak ada method simpan atau hapus, dan `ddl-auto=none` sehingga struktur tabel tidak pernah diubah.
 
-## 9. Testing
+## 9. Autentikasi (HTTP Basic, Spring Security)
+
+**Basic Auth wajib dipakai lewat HTTPS/TLS.** Header `Authorization: Basic ...` hanya Base64 dari `username:password`, bukan enkripsi. Siapa pun yang menyadap koneksi HTTP biasa bisa membaca password-nya.
+
+Spring Security membaca dan memvalidasi header `Authorization` pada setiap request terproteksi. Autentikasi bersifat stateless: tidak ada session maupun cookie. Password diverifikasi dengan BCrypt (`PasswordEncoder`), dan aplikasi hanya menyimpan hash-nya.
+
+```bash
+curl -i \
+  -u username:password \
+  "https://pdf.example.com/checkmanifets?id=ID_DOCK_SHIP&branch_id=1011&harbour_id=348&route_id=5510"
+```
+
+### Endpoint publik dan terproteksi
+
+| Endpoint | Akses |
+| --- | --- |
+| `GET /api/v1/manifests/files/{id}`, `POST /api/v1/manifests/files/{id}/unlock` | Publik (dilindungi password tanggal) |
+| `POST /api/v1/manifests/generate-pdf` | Basic Auth + authority `MANIFEST_GENERATE` |
+| `GET /checkmanifets`, `GET /checkmanifest` | Basic Auth + authority `MANIFEST_CHECK` |
+| `POST /manitfestnotapprove`, `POST /manifestnotapprove` | Basic Auth + authority `MANIFEST_APPROVAL_RESET` |
+| Path lain | Basic Auth (user terautentikasi apa pun) |
+
+### Respons error
+
+```json
+{
+  "code": "AUTH-401",
+  "message": "Kredensial tidak valid",
+  "timestamp": "2026-11-10T11:38:23.161Z",
+  "path": "/api/v1/manifests/generate-pdf",
+  "correlationId": "e2e-001"
+}
+```
+
+| HTTP | `code` | Arti |
+| --- | --- | --- |
+| 401 | `AUTH-401` | Header tidak ada, username tidak dikenal, atau password salah. Pesannya sama untuk semua kasus agar username tidak bisa ditebak |
+| 401 | `AUTH-USER-DISABLED` | Password benar tetapi akun dinonaktifkan |
+| 403 | `AUTH-403` | Login berhasil tetapi user tidak punya authority untuk endpoint tersebut |
+| 500 | `AUTH-INTERNAL-ERROR` | Kegagalan internal saat autentikasi. Detailnya hanya ada di log server |
+
+Kirim header `X-Correlation-Id` untuk melacak request. Nilainya hanya boleh berisi huruf, angka, `.`, `_`, atau `-`, maksimal 64 karakter. Jika header tidak dikirim, server membuat UUID. Nilai ini dikembalikan di header respons, di field `correlationId`, dan muncul di setiap baris log.
+
+### Konfigurasi
+
+Konfigurasi ada di `src/main/resources/application.properties` dengan prefix `asdp.security.basic-auth`. Nilai sensitif diambil dari environment variable, yaitu `.env` untuk Docker Compose:
+
+| Environment variable | Wajib | Keterangan |
+| --- | --- | --- |
+| `MANIFEST_API_USERNAME` | Ya | Username client, tanpa `:` dan spasi |
+| `MANIFEST_API_PASSWORD_HASH` | Ya | Hash BCrypt dari password. Password asli ditolak saat aplikasi start |
+| `MANIFEST_API_AUTHORITIES` | Ya | Daftar authority dipisah koma. Berikan hanya yang dibutuhkan |
+| `MANIFEST_API_ENABLED` | Tidak (default `true`) | `false` menonaktifkan akun |
+| `ASDP_BASIC_AUTH_REALM` | Tidak (default `asdp-internal-api`) | Realm pada header `WWW-Authenticate` |
+| `ASDP_BASIC_AUTH_ENABLED` | Tidak (default `true`) | `false` mematikan Basic Auth dan **membuka semua endpoint**. Hanya untuk pengembangan lokal |
+
+Endpoint publik diatur lewat `asdp.security.basic-auth.public-paths`. User tambahan bisa didaftarkan sebagai `asdp.security.basic-auth.users[1].*`, atau lewat environment variable `ASDP_SECURITY_BASICAUTH_USERS_1_USERNAME`, `ASDP_SECURITY_BASICAUTH_USERS_1_PASSWORDHASH`, dan `ASDP_SECURITY_BASICAUTH_USERS_1_AUTHORITIES`.
+
+### Cara membuat hash BCrypt
+
+Cara berikut tidak menyimpan password di riwayat shell. Contoh dengan Docker:
+
+```bash
+docker run --rm -it httpd:2.4-alpine htpasswd -nBC 12 ""
+```
+
+Masukkan password saat diminta, lalu ambil bagian setelah `:` (diawali `$2y$12$`). Simpan di `.env` **dengan tanda kutip tunggal** agar Docker Compose tidak memproses karakter `$`:
+
+```dotenv
+MANIFEST_API_PASSWORD_HASH='$2y$12$...'
+```
+
+## 10. Testing
 
 ```bash
 # Bila JDK 21 (misalnya Oracle JDK 21) & Maven 3.9.6 tersedia tanpa Docker
 mvn clean test
-export MANIFEST_API_USERNAME=ganti-username MANIFEST_API_PASSWORD=ganti-password
+export MANIFEST_API_USERNAME=ganti-username MANIFEST_API_PASSWORD_HASH='$2y$12$...' MANIFEST_API_AUTHORITIES=MANIFEST_GENERATE,MANIFEST_CHECK
 mvn spring-boot:run
 ```
 
-Unit test mencakup pembuatan PDF, QR payload, random filename, pembacaan storage, timezone WIB, penguncian setelah lima percobaan salah, dan pemeriksaan Basic Auth. **Pengujian end-to-end build Docker dan runtime HTTP perlu dilakukan di server**, karena lingkungan penyusunan project belum memiliki Docker/Java 21/Maven.
+Unit test mencakup pembuatan PDF, QR payload, random filename, pembacaan storage, timezone WIB, penguncian setelah lima percobaan salah, dan Basic Auth (unit test dengan Mockito serta integration test lewat server embedded: 401, 403, akun nonaktif, endpoint publik, mode nonaktif, dan tidak ada credential di log maupun respons).

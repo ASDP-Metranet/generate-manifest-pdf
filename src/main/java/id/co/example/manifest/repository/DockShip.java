@@ -99,10 +99,6 @@ public class DockShip {
     @JsonProperty("approve_manifest")
     private Boolean approveManifest;
 
-    @Column(name = "cut_off_id")
-    @JsonProperty("cut_off_id")
-    private String cutOffId;
-
     protected DockShip() {
     }
 
@@ -135,5 +131,11 @@ public class DockShip {
     public Double getPendPos() { return pendPos; }
     public LocalDateTime getUpdatedAt() { return updatedAt; }
     public Boolean getApproveManifest() { return approveManifest; }
-    public String getCutOffId() { return cutOffId; }
+
+    /**
+     * Kept in the JSON for existing clients. The cut_off_id column was dropped from dock_ship,
+     * so it now carries the row id, which equals the id the client asked for.
+     */
+    @JsonProperty("cut_off_id")
+    public String getCutOffId() { return id; }
 }

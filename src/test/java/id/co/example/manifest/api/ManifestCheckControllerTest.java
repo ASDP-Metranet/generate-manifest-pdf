@@ -34,7 +34,9 @@ class ManifestCheckControllerTest {
                 .andExpect(jsonPath("$.data.branch_id").value(1011))
                 .andExpect(jsonPath("$.data.harbor_id").value(348))
                 .andExpect(jsonPath("$.data.route_id").value(5510))
-                .andExpect(jsonPath("$.data.harborId").doesNotExist());
+                .andExpect(jsonPath("$.data.harborId").doesNotExist())
+                .andExpect(jsonPath("$.data.cut_off_id").value("ABC"))
+                .andExpect(jsonPath("$.data.cutOffId").doesNotExist());
     }
 
     @Test

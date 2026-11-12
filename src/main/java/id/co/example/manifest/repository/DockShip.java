@@ -10,7 +10,7 @@ import java.time.LocalDateTime;
 
 /**
  * Mapping of dock_ship. JSON names keep the database column names. There are no setters:
- * the only write is DockShipRepository.resetApproveManifest.
+ * the only write is DockShipRepository.updateTootlip.
  */
 @Entity
 @Table(name = "dock_ship")
@@ -99,6 +99,11 @@ public class DockShip {
     @JsonProperty("approve_manifest")
     private Boolean approveManifest;
 
+    // The column really is spelled "tootlip" in the database.
+    @Column(name = "tootlip")
+    @JsonProperty("tootlip")
+    private Boolean tootlip;
+
     protected DockShip() {
     }
 
@@ -131,6 +136,7 @@ public class DockShip {
     public Double getPendPos() { return pendPos; }
     public LocalDateTime getUpdatedAt() { return updatedAt; }
     public Boolean getApproveManifest() { return approveManifest; }
+    public Boolean getTootlip() { return tootlip; }
 
     /**
      * Kept in the JSON for existing clients. The cut_off_id column was dropped from dock_ship,

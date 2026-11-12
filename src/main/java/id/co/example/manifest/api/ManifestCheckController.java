@@ -17,6 +17,7 @@ import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.server.ResponseStatusException;
 
+import static org.springframework.http.HttpStatus.BAD_REQUEST;
 import static org.springframework.http.HttpStatus.NOT_FOUND;
 import static org.springframework.http.HttpStatus.OK;
 import static org.springframework.http.HttpStatus.SERVICE_UNAVAILABLE;
@@ -48,17 +49,22 @@ public class ManifestCheckController {
     }
 
     /**
-     * Sets dock_ship.approve_manifest = 0 for the given id. "manitfestnotapprove" is the requested
-     * path; "manifestnotapprove" is its correctly spelled alias.
+     * Sets dock_ship.tootlip to {@code value} (0 or 1, default 1) for the given id; approve_manifest is not touched.
+     * "manitfestnotapprove" is the requested path; "manifestnotapprove" is its correctly spelled alias.
      */
     @PostMapping(value = {"/manitfestnotapprove", "/manifestnotapprove"}, produces = MediaType.APPLICATION_JSON_VALUE)
-    public ResponseEntity<ApproveManifestResetResponse> resetApproveManifest(
-            @RequestParam("id") @NotBlank @Size(max = 100) String id) {
+    public ResponseEntity<TootlipUpdateResponse> updateTootlip(
+            @RequestParam("id") @NotBlank @Size(max = 100) String id,
+            @RequestParam(value = "value", defaultValue = "1") int value) {
+        // Checked here rather than with @Min/@Max so the rule holds however the controller is set up.
+        if (value != 0 && value != 1) {
+            throw new ResponseStatusException(BAD_REQUEST, "value harus 0 atau 1");
+        }
         try {
-            boolean updated = dockShips.resetApproveManifest(id) > 0;
+            boolean updated = dockShips.updateTootlip(id, value == 1) > 0;
             return ResponseEntity.status(updated ? OK : NOT_FOUND)
                     .header(HttpHeaders.CACHE_CONTROL, "no-store")
-                    .body(new ApproveManifestResetResponse(id, updated, updated ? 0 : null));
+                    .body(new TootlipUpdateResponse(id, updated, updated ? value : null));
         } catch (DataAccessException | TransactionException ex) {
             throw new ResponseStatusException(SERVICE_UNAVAILABLE, "Database tidak dapat diakses", ex);
         }
@@ -66,7 +72,7 @@ public class ManifestCheckController {
 
     public record ManifestCheckResponse(boolean found, DockShip data) {}
 
-    public record ApproveManifestResetResponse(
+    public record TootlipUpdateResponse(
             String id, boolean updated,
-            @JsonProperty("approve_manifest") Integer approveManifest) {}
+            @JsonProperty("tootlip") Integer tootlip) {}
 }

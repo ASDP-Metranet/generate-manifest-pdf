@@ -11,7 +11,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
 import java.util.function.Supplier;
-import java.util.function.ToIntFunction;
+import java.util.function.ToIntBiFunction;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
@@ -73,45 +73,68 @@ class ManifestCheckControllerTest {
     }
 
     @Test
-    void resetApproveManifestUpdatesExistingRow() throws Exception {
-        List<String> updatedIds = new ArrayList<>();
-        mvc(Optional::empty, id -> { updatedIds.add(id); return 1; })
-                .perform(post("/manitfestnotapprove").param("id", "ABC"))
+    void valueParameterSetsTootlip() throws Exception {
+        List<String> updates = new ArrayList<>();
+        MockMvc mvc = mvc(Optional::empty, (id, value) -> { updates.add(id + "=" + value); return 1; });
+        mvc.perform(post("/manitfestnotapprove").param("id", "ABC").param("value", "0"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.id").value("ABC"))
                 .andExpect(jsonPath("$.updated").value(true))
-                .andExpect(jsonPath("$.approve_manifest").value(0));
-        assertEquals(List.of("ABC"), updatedIds);
+                .andExpect(jsonPath("$.tootlip").value(0))
+                .andExpect(jsonPath("$.approve_manifest").doesNotExist());
+        mvc.perform(post("/manitfestnotapprove").param("id", "ABC").param("value", "1"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.tootlip").value(1));
+        assertEquals(List.of("ABC=false", "ABC=true"), updates);
     }
 
     @Test
-    void resetApproveManifestReportsUnknownId() throws Exception {
-        mvc(Optional::empty, id -> 0)
-                .perform(post("/manitfestnotapprove").param("id", "TIDAKADA"))
+    void valueDefaultsToOneWhenNotSent() throws Exception {
+        List<String> updates = new ArrayList<>();
+        mvc(Optional::empty, (id, value) -> { updates.add(id + "=" + value); return 1; })
+                .perform(post("/manitfestnotapprove").param("id", "ABC"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.tootlip").value(1));
+        assertEquals(List.of("ABC=true"), updates);
+    }
+
+    @Test
+    void valueOtherThanZeroOrOneIsRejected() throws Exception {
+        MockMvc mvc = mvc(Optional::empty, (id, value) -> { throw new AssertionError("must not update"); });
+        for (String value : new String[]{"2", "-1", "10", "abc", "1.5"}) {
+            mvc.perform(post("/manitfestnotapprove").param("id", "ABC").param("value", value))
+                    .andExpect(status().isBadRequest());
+        }
+    }
+
+    @Test
+    void notApproveReportsUnknownId() throws Exception {
+        mvc(Optional::empty, (id, value) -> 0)
+                .perform(post("/manitfestnotapprove").param("id", "TIDAKADA").param("value", "1"))
                 .andExpect(status().isNotFound())
                 .andExpect(jsonPath("$.updated").value(false))
-                .andExpect(jsonPath("$.approve_manifest").isEmpty());
+                .andExpect(jsonPath("$.tootlip").isEmpty());
     }
 
     @Test
-    void resetApproveManifestRequiresIdAndPost() throws Exception {
-        MockMvc mvc = mvc(Optional::empty, id -> { throw new AssertionError("must not update"); });
+    void notApproveRequiresIdAndPost() throws Exception {
+        MockMvc mvc = mvc(Optional::empty, (id, value) -> { throw new AssertionError("must not update"); });
         mvc.perform(post("/manitfestnotapprove")).andExpect(status().isBadRequest());
         mvc.perform(get("/manitfestnotapprove?id=ABC")).andExpect(status().isMethodNotAllowed());
     }
 
     @Test
-    void resetApproveManifestDatabaseFailureReturnsServiceUnavailable() throws Exception {
-        mvc(Optional::empty, id -> { throw new DataAccessResourceFailureException("down"); })
+    void notApproveDatabaseFailureReturnsServiceUnavailable() throws Exception {
+        mvc(Optional::empty, (id, value) -> { throw new DataAccessResourceFailureException("down"); })
                 .perform(post("/manitfestnotapprove").param("id", "ABC"))
                 .andExpect(status().isServiceUnavailable());
     }
 
     private static MockMvc mvc(Supplier<Optional<DockShip>> result) {
-        return mvc(result, id -> { throw new AssertionError("must not update"); });
+        return mvc(result, (id, value) -> { throw new AssertionError("must not update"); });
     }
 
-    private static MockMvc mvc(Supplier<Optional<DockShip>> result, ToIntFunction<String> reset) {
+    private static MockMvc mvc(Supplier<Optional<DockShip>> result, ToIntBiFunction<String, Boolean> update) {
         DockShipRepository repository = new DockShipRepository() {
             @Override
             public Optional<DockShip> findByIdAndBranchIdAndHarborIdAndRouteId(
@@ -120,8 +143,8 @@ class ManifestCheckControllerTest {
             }
 
             @Override
-            public int resetApproveManifest(String id) {
-                return reset.applyAsInt(id);
+            public int updateTootlip(String id, boolean value) {
+                return update.applyAsInt(id, value);
             }
         };
         return MockMvcBuilders.standaloneSetup(new ManifestCheckController(repository)).build();

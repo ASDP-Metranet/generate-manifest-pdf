@@ -10,15 +10,15 @@ import java.util.Optional;
 
 /**
  * Extends the bare Repository, so only the methods declared here exist: no save or delete.
- * The only write is resetting approve_manifest.
+ * The only write is setting tootlip.
  */
 public interface DockShipRepository extends Repository<DockShip, String> {
     @Transactional(readOnly = true)
     Optional<DockShip> findByIdAndBranchIdAndHarborIdAndRouteId(String id, Long branchId, Long harborId, Long routeId);
 
-    /** Returns the number of matched rows: 1 when the id exists, also when it was already 0. */
+    /** Sets dock_ship.tootlip to the given value. Returns the number of matched rows: 1 when the id exists, also when the value was unchanged. */
     @Transactional
     @Modifying
-    @Query("UPDATE DockShip d SET d.approveManifest = false WHERE d.id = :id")
-    int resetApproveManifest(@Param("id") String id);
+    @Query("UPDATE DockShip d SET d.tootlip = :value WHERE d.id = :id")
+    int updateTootlip(@Param("id") String id, @Param("value") boolean value);
 }

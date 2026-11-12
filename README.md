@@ -304,20 +304,20 @@ Response HTTP **200** berisi `{"found": true, "data": { ...kolom dock_ship... }}
 
 ### Manifest not approve
 
-**POST** `/manitfestnotapprove?id={id}` (alias `/manifestnotapprove`), memakai Basic Auth dengan authority `MANIFEST_APPROVAL_RESET`. Mengubah `dock_ship.approve_manifest` menjadi `0` untuk baris dengan `id` tersebut; kolom lain tidak diubah.
+**POST** `/manitfestnotapprove?id={id}&value={0|1}` (alias `/manifestnotapprove`), memakai Basic Auth dengan authority `MANIFEST_APPROVAL_RESET`. Mengisi `dock_ship.tootlip` dengan `value` untuk baris dengan `id` tersebut (nama kolom di database memang `tootlip`); `approve_manifest` tidak diubah. `value` hanya boleh `0` atau `1`, dan bila tidak dikirim dianggap `1`; kolom lain tidak diubah.
 
 ```bash
 curl -sS -X POST -u "$API_USER:$API_PASSWORD" \
-  "http://127.0.0.1:8080/manitfestnotapprove?id=ID_DOCK_SHIP"
+  "http://127.0.0.1:8080/manitfestnotapprove?id=ID_DOCK_SHIP&value=1"
 ```
 
-Response HTTP **200** `{"id": "...", "updated": true, "approve_manifest": 0}`, termasuk jika nilainya sudah `0`. `id` tidak ada: HTTP **404** `{"updated": false, "approve_manifest": null}`. `id` kosong: HTTP **400**. Database tidak dapat diakses: HTTP **503**.
+Response HTTP **200** `{"id": "...", "updated": true, "tootlip": <value>}`, termasuk jika nilainya sudah sama. `id` tidak ada: HTTP **404** `{"updated": false, "tootlip": null}`. `id` kosong, atau `value` selain `0`/`1`: HTTP **400**. Database tidak dapat diakses: HTTP **503**.
 
 ### Database
 
 Koneksi database diatur lewat `MANIFEST_DB_URL`, `MANIFEST_DB_USERNAME`, dan `MANIFEST_DB_PASSWORD` di `.env`. Ketiganya wajib diisi.
 
-Query memakai Spring Data JPA (Hibernate), tanpa SQL manual: entity `DockShip` dan `DockShipRepository`. Repository hanya punya method cek (transaksi read-only) dan reset `approve_manifest`; tidak ada method simpan atau hapus, dan `ddl-auto=none` sehingga struktur tabel tidak pernah diubah.
+Query memakai Spring Data JPA (Hibernate), tanpa SQL manual: entity `DockShip` dan `DockShipRepository`. Repository hanya punya method cek (transaksi read-only) dan update `tootlip`; tidak ada method simpan atau hapus, dan `ddl-auto=none` sehingga struktur tabel tidak pernah diubah.
 
 ## 9. Autentikasi (HTTP Basic, Spring Security)
 

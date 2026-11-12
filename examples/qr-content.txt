@@ -1,0 +1,4 @@
+id_boarding: B22608190999
+approved_by_operator: Dharma Lautan Utama
+tanggal_approve_manifest: 2026/08/17 17:17:10
+id_pkk: PKK123213ABC

@@ -144,7 +144,30 @@ class BasicAuthIntegrationTest {
 
         HttpResponse<String> page = call(get("/api/v1/manifests/files/" + fileId.group(1)));
         assertEquals(200, page.statusCode());
-        assertTrue(page.body().contains("DDMMYYYY"));
+        assertTrue(page.body().contains("DDMMYYYY</b> (contoh: 25122026)"));
+        assertFalse(page.body().contains("WIB"));
+
+        HttpResponse<String> wrong = call(HttpRequest.newBuilder(uri("/api/v1/manifests/files/" + fileId.group(1) + "/unlock"))
+                .header("Content-Type", "application/x-www-form-urlencoded")
+                .POST(HttpRequest.BodyPublishers.ofString("password=20261029")));
+        assertTrue(wrong.body().contains("Gunakan tanggal cutoff/keberangkatan (DDMMYYYY)."));
+        assertEquals(401, wrong.statusCode());
+        HttpResponse<String> unlocked = call(HttpRequest.newBuilder(uri("/api/v1/manifests/files/" + fileId.group(1) + "/unlock"))
+                .header("Content-Type", "application/x-www-form-urlencoded")
+                .POST(HttpRequest.BodyPublishers.ofString("password=29102026")));
+        // Correct password → 303 to a GET URL, so the browser's download button can fetch the PDF again.
+        assertEquals(303, unlocked.statusCode());
+        String pdfUrl = unlocked.headers().firstValue("Location").orElseThrow();
+        assertTrue(pdfUrl.startsWith("/api/v1/manifests/files/" + fileId.group(1) + "/pdf?ticket="));
+        for (int fetch = 0; fetch < 2; fetch++) {
+            HttpResponse<String> pdf = call(get(pdfUrl));
+            assertEquals(200, pdf.statusCode());
+            assertTrue(pdf.headers().firstValue("Content-Type").orElse("").startsWith("application/pdf"));
+            assertTrue(pdf.body().startsWith("%PDF-"));
+        }
+        HttpResponse<String> noTicket = call(get("/api/v1/manifests/files/" + fileId.group(1) + "/pdf?ticket=made-up"));
+        assertEquals(303, noTicket.statusCode());
+        assertEquals("/api/v1/manifests/files/" + fileId.group(1), noTicket.headers().firstValue("Location").orElse(""));
         // A missing document on a public path stays 404 instead of turning into 401.
         assertEquals(404, call(get("/api/v1/manifests/files/does-not-exist")).statusCode());
     }

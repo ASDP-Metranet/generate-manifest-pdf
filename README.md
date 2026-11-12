@@ -1,8 +1,8 @@
 # Manifest PDF Service — Java 21 + Spring Boot 4.1.1
 
-Menerima JSON manifest kendaraan/penumpang, membuat PDF A4 portrait berisi daftar penumpang pada kendaraan, daftar penumpang pejalan kaki, daftar barang curah dan hewan, serta rekapitulasi, dan membubuhkan QR JSON berisi `id_boarding`, `approved_by_operator`, `tanggal_approve_manifest`, `id_pkk` ketika `id_pkk` tersedia, lalu **menyimpan PDF ke storage lokal** dan mengembalikan **URL acak**. Saat URL dibuka, browser menampilkan formulir password **DDMMYYYY** dari **tanggal saat URL diakses (Asia/Jakarta/WIB)**. Setelah password benar, PDF muncul di browser.
+Menerima JSON manifest kendaraan/penumpang, membuat PDF A4 portrait berisi daftar penumpang pada kendaraan, daftar penumpang pejalan kaki, daftar barang curah dan hewan, serta rekapitulasi, dan membubuhkan QR berisi teks `id_boarding`, `approved_by_operator`, `tanggal_approve_manifest`, `id_pkk` ketika `id_pkk` tersedia, lalu **menyimpan PDF ke storage lokal** dan mengembalikan **URL acak**. Saat URL dibuka, browser menampilkan formulir password. Password-nya adalah tanggal **`document.cutOffId`** yang ditulis dengan format **DDMMYYYY** (cutOffId `20261225` => password `25122026`). Setelah password benar, PDF muncul di browser.
 
-**PENTING:** Password tanggal sangat mudah ditebak. Random URL menyulitkan penemuan dokumen tetapi tidak menggantikan autentikasi. Untuk manifest yang memuat identitas pribadi, batasi akses melalui HTTPS, autentikasi API, firewall, logging akses, kebijakan retensi file, dan bila mungkin gunakan password independen yang kuat. Contoh ini tidak mengenkripsi PDF di storage dan tidak menggunakan PDF document password; proteksi berada pada endpoint HTML sebelum file diberikan.
+**PENTING:** Password berupa tanggal (cutOffId) mudah ditebak. Random URL menyulitkan penemuan dokumen tetapi tidak menggantikan autentikasi. Untuk manifest yang memuat identitas pribadi, batasi akses melalui HTTPS, autentikasi API, firewall, logging akses, kebijakan retensi file, dan bila mungkin gunakan password independen yang kuat. Contoh ini tidak mengenkripsi PDF di storage dan tidak menggunakan PDF document password; proteksi berada pada endpoint HTML sebelum file diberikan.
 
 ## 1. Struktur project
 
@@ -16,7 +16,7 @@ manifest-pdf-springboot/
 ├── README.md
 ├── examples/
 │   ├── request.json
-│   ├── qr-content.json
+│   ├── qr-content.txt
 │   ├── call-api.sh
 │   └── call-api.ps1
 ├── storage/                      # dibuat saat deployment (jangan di-expose publik)
@@ -114,13 +114,14 @@ Content-Type: application/json
 Accept: application/json
 ```
 
-Endpoint ini memakai HTTP Basic Auth dan membutuhkan authority `MANIFEST_GENERATE` (lihat bagian **9. Autentikasi**). Endpoint `/files/...` tidak memakai Basic Auth karena dilindungi password tanggal.
+Endpoint ini memakai HTTP Basic Auth dan membutuhkan authority `MANIFEST_GENERATE` (lihat bagian **9. Autentikasi**). Endpoint `/files/...` tidak memakai Basic Auth karena dilindungi password cutOffId.
 
 Body (file lengkap: `examples/request.json`):
 
 ```json
 {
   "document": {
+    "cutOffId": "20261029143733008048400",
     "manifestId": "MNF-20261029-001",
     "tanggal": "2026-10-29",
     "namaKapal": "KMP. PORA PORA",
@@ -184,8 +185,7 @@ Response HTTP **201** (contoh token berbeda pada setiap request):
   "fileId": "pNOh-uCNnEluOQC4vFczgWbSUKkfeCKFRPJzz0Q_0vU",
   "url": "https://pdf.example.com/api/v1/manifests/files/pNOh-uCNnEluOQC4vFczgWbSUKkfeCKFRPJzz0Q_0vU",
   "createdAt": "2026-10-23T18:07:00+07:00",
-  "passwordFormat": "DDMMYYYY",
-  "passwordTimezone": "Asia/Jakarta"
+  "passwordFormat": "DDMMYYYY"
 }
 ```
 
@@ -203,26 +203,28 @@ Atau jalankan `bash examples/call-api.sh` (Linux/macOS), `./examples/call-api.ps
 ## 4. Buka URL dengan password
 
 - **GET** `/api/v1/manifests/files/{fileId}`: menampilkan halaman formulir password (HTML).
-- **POST** `/api/v1/manifests/files/{fileId}/unlock`: menerima field HTML form `password`; jika benar, memberikan `application/pdf`, dengan `Content-Disposition: inline`.
-- Password berasal dari **tanggal saat akses**, mengikuti `MANIFEST_ACCESS_ZONE` (default WIB), bukan tanggal manifest/generate. Contoh 23 Oktober 2026 => **23102026**, 24 Oktober 2026 => **24102026**.
+- **POST** `/api/v1/manifests/files/{fileId}/unlock`: menerima field HTML form `password`; jika benar, menjawab **303** ke `GET /api/v1/manifests/files/{fileId}/pdf?ticket=...`.
+- **GET** `/api/v1/manifests/files/{fileId}/pdf?ticket=...`: memberikan `application/pdf` dengan `Content-Disposition: inline; filename="manifest-penumpang.pdf"`. Karena PDF diambil lewat GET, ikon download di viewer PDF Chrome/Edge bisa mengambilnya ulang. Ticket acak, hanya untuk file itu, berlaku 10 menit (disimpan di memori). Ticket salah atau kedaluwarsa: **303** kembali ke halaman password.
+- Password adalah tanggal **`document.cutOffId`** (tanggal cutoff/keberangkatan) dari request generate, ditulis dengan format **DDMMYYYY**. Hanya **8 digit awal** cutOffId (YYYYMMDD) yang dipakai; sisanya diabaikan. Contoh: `"cutOffId": "20261029143733008048400"` => tanggal 20261029 => password **29102026**. Password ini berlaku selamanya untuk PDF tersebut, tidak berubah setiap hari.
+- Server tidak menyimpan password-nya, hanya hash SHA-256 di file `<fileId>.key` di sebelah PDF. PDF lama yang dibuat sebelum fitur cutOffId (tanpa file `.key`) tidak bisa dibuka lagi dan dijawab **404**.
 - Salah password: HTTP **401** + form peringatan. Setelah 5 percobaan salah: **429** dan dikunci 15 menit (status kunci disimpan di RAM, bukan persisten).
 - Token tidak valid atau file tidak ada: HTTP **404**.
-- Browser: salin field `url` dari response dan buka URL; ketik DDMMYYYY; klik **Buka PDF**.
+- Browser: salin field `url` dari response dan buka URL; ketik tanggal cutoff/keberangkatan (DDMMYYYY); klik **Buka PDF**.
 
 Untuk mengunduh memakai command line:
 
 ```bash
 # Ganti FILE_ID dari response API
 FILE_ID='pNOh-uCNnEluOQC4vFczgWbSUKkfeCKFRPJzz0Q_0vU'
-PASSWORD="$(TZ=Asia/Jakarta date +%d%m%Y)"
+PASSWORD='29102026'   # 8 digit awal cutOffId (20261029) ditulis DDMMYYYY
 
-curl -fsS -X POST "http://127.0.0.1:8080/api/v1/manifests/files/$FILE_ID/unlock" \
+curl -fsS -L "http://127.0.0.1:8080/api/v1/manifests/files/$FILE_ID/unlock" \
   -H 'Content-Type: application/x-www-form-urlencoded' \
   --data-urlencode "password=$PASSWORD" \
   --output manifest-penumpang.pdf
 ```
 
-**Catatan:** Mengakses GET link dengan cURL hanya menerima HTML password, bukan file PDF. File PDF hanya dikirim setelah POST unlock valid.
+**Catatan:** Mengakses GET link dengan cURL hanya menerima HTML password, bukan file PDF. File PDF hanya dikirim setelah POST unlock valid. Pakai `-L` agar curl mengikuti redirect 303, dan jangan pakai `-X POST` (curl akan tetap memakai POST setelah redirect dan mendapat 405).
 
 ## 5. Penyimpanan file di host
 
@@ -244,16 +246,17 @@ storage/
 ## 6. QR Code pada PDF
 
 Jika `document.id_pkk` berisi nilai, QR Code memuat empat field dari request
-(`document`), bukan random URL:
+(`document`) sebagai teks biasa, satu baris per field (bukan JSON, bukan random URL).
+Hasil scan QR (contoh `examples/qr-content.txt`):
 
-```json
-{
-  "id_boarding": "B22608190999",
-  "approved_by_operator": "Dharma Lautan Utama",
-  "tanggal_approve_manifest": "2026-08-17T17:17:10",
-  "id_pkk": "PKK123213ABC"
-}
+```text
+id_boarding: B22608190999
+approved_by_operator: Dharma Lautan Utama
+tanggal_approve_manifest: 2026/08/17 17:17:10
+id_pkk: PKK123213ABC
 ```
+
+`tanggal_approve_manifest` ditulis dengan format `yyyy/MM/dd HH:mm:ss`. Antar baris dipisah karakter baris baru (`\n`).
 
 Tanda tangan dan QR Code berada di bagian bawah tabel rekapitulasi. Jika `document.id_pkk` tidak dikirim, `null`, atau string kosong, bagian tanda tangan
 tetap ditampilkan tetapi QR Code tidak dibuat.
@@ -332,7 +335,7 @@ curl -i \
 
 | Endpoint | Akses |
 | --- | --- |
-| `GET /api/v1/manifests/files/{id}`, `POST /api/v1/manifests/files/{id}/unlock` | Publik (dilindungi password tanggal) |
+| `GET /api/v1/manifests/files/{id}`, `POST /api/v1/manifests/files/{id}/unlock` | Publik (dilindungi password cutOffId) |
 | `POST /api/v1/manifests/generate-pdf` | Basic Auth + authority `MANIFEST_GENERATE` |
 | `GET /checkmanifets`, `GET /checkmanifest` | Basic Auth + authority `MANIFEST_CHECK` |
 | `POST /manitfestnotapprove`, `POST /manifestnotapprove` | Basic Auth + authority `MANIFEST_APPROVAL_RESET` |
@@ -397,4 +400,4 @@ export MANIFEST_API_USERNAME=ganti-username MANIFEST_API_PASSWORD_HASH='$2y$12$.
 mvn spring-boot:run
 ```
 
-Unit test mencakup pembuatan PDF, QR payload, random filename, pembacaan storage, timezone WIB, penguncian setelah lima percobaan salah, dan Basic Auth (unit test dengan Mockito serta integration test lewat server embedded: 401, 403, akun nonaktif, endpoint publik, mode nonaktif, dan tidak ada credential di log maupun respons).
+Unit test mencakup pembuatan PDF, QR payload, random filename, pembacaan storage, validasi dan password cutOffId, penguncian setelah lima percobaan salah, dan Basic Auth (unit test dengan Mockito serta integration test lewat server embedded: 401, 403, akun nonaktif, endpoint publik, mode nonaktif, dan tidak ada credential di log maupun respons).

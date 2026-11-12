@@ -7,4 +7,4 @@ curl --fail-with-body -sS -X POST "$BASE/api/v1/manifests/generate-pdf" \
   -u "$MANIFEST_API_USERNAME:$MANIFEST_API_PASSWORD" \
   -H 'Content-Type: application/json' -H 'Accept: application/json' \
   --data-binary @examples/request.json | tee manifest-link.json
-printf '\nBuka URL pada field url di browser dan masukkan password DDMMYYYY (hari ini WIB).\n'
+printf '\nBuka URL pada field url di browser dan masukkan tanggal cutoff/keberangkatan (DDMMYYYY) sebagai password.\n'

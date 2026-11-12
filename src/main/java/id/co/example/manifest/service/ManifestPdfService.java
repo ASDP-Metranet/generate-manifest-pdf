@@ -20,7 +20,6 @@ import org.apache.pdfbox.pdmodel.font.PDFont;
 import org.apache.pdfbox.pdmodel.font.PDType1Font;
 import org.apache.pdfbox.pdmodel.font.Standard14Fonts;
 import org.springframework.stereotype.Service;
-import tools.jackson.databind.json.JsonMapper;
 
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
@@ -36,8 +35,8 @@ import java.util.TreeMap;
 /**
  * A4 portrait layout following the manifest template: passengers in vehicles, pedestrians,
  * bulk cargo and animals, then the recap with signature and QR. Layout coordinates are in PDF
- * points measured from the top of the page. The QR is intentionally exactly the four approval
- * properties, serialized as JSON.
+ * points measured from the top of the page. The QR holds exactly the four approval properties
+ * as plain text, one "name: value" line each, so a phone scanner shows them readably.
  */
 @Service
 public class ManifestPdfService {
@@ -63,7 +62,7 @@ public class ManifestPdfService {
     private static final PDFont NORMAL = new PDType1Font(Standard14Fonts.FontName.TIMES_ROMAN);
     private static final PDFont BOLD = new PDType1Font(Standard14Fonts.FontName.TIMES_BOLD);
     private static final DateTimeFormatter DOCUMENT_DATE = DateTimeFormatter.ofPattern("d MMM uuuu", Locale.ENGLISH);
-    private static final DateTimeFormatter QR_TIMESTAMP = DateTimeFormatter.ofPattern("uuuu-MM-dd'T'HH:mm:ss");
+    private static final DateTimeFormatter QR_TIMESTAMP = DateTimeFormatter.ofPattern("uuuu/MM/dd HH:mm:ss");
     private static final String DEFAULT_CATEGORY = "PENUMPANG DEWASA";
 
     private static final Table VEHICLE_TABLE = new Table("DAFTAR PENUMPANG PADA KENDARAAN",
@@ -79,12 +78,6 @@ public class ManifestPdfService {
             new String[]{"No.", "Golongan", "Nama", "Alamat", "Identitas", "Qty"},
             ROW_H);
 
-    private final JsonMapper jsonMapper;
-
-    public ManifestPdfService(JsonMapper jsonMapper) {
-        this.jsonMapper = jsonMapper;
-    }
-
     public byte[] generate(ManifestRequest request) throws IOException {
         int vehiclePassengers = request.vehicles().stream().mapToInt(v -> v.passengers().size()).sum();
         if (vehiclePassengers + request.pedestrians().size() + request.cargo().size() > 10000) {
@@ -96,7 +89,7 @@ public class ManifestPdfService {
         List<Row> pedestrianRows = pedestrianRows(request.pedestrians());
         List<Row> cargoRows = cargoRows(request.cargo());
         Recap recap = buildRecap(request);
-        String qrJson = shouldIncludeQr(document) ? buildQrJson(document) : null;
+        String qrText = shouldIncludeQr(document) ? buildQrText(document) : null;
 
         try (PDDocument pdf = new PDDocument();
              ByteArrayOutputStream buffer = new ByteArrayOutputStream()) {
@@ -104,20 +97,28 @@ public class ManifestPdfService {
                 drawTable(sheet, document, VEHICLE_TABLE, vehicleRows);
                 drawTable(sheet, document, PEDESTRIAN_TABLE, pedestrianRows);
                 drawTable(sheet, document, CARGO_TABLE, cargoRows);
-                drawRecap(sheet, document, recap, request.signature(), qrJson);
+                drawRecap(sheet, document, recap, request.signature(), qrText);
             }
             pdf.save(buffer);
             return buffer.toByteArray();
         }
     }
 
-    public String buildQrJson(DocumentData d) {
-        Map<String, Object> payload = new LinkedHashMap<>();
-        payload.put("id_boarding", d.id_boarding());
-        payload.put("approved_by_operator", d.approved_by_operator());
-        payload.put("tanggal_approve_manifest", d.tanggal_approve_manifest().format(QR_TIMESTAMP));
-        payload.put("id_pkk", d.id_pkk());
-        return jsonMapper.writeValueAsString(payload);
+    /**
+     * QR content, for example:
+     * <pre>
+     * id_boarding: B22608190999
+     * approved_by_operator: Dharma Lautan Utama
+     * tanggal_approve_manifest: 2026/08/17 17:17:10
+     * id_pkk: PKK123213ABC
+     * </pre>
+     */
+    public String buildQrText(DocumentData d) {
+        return String.join("\n",
+                "id_boarding: " + oneLine(d.id_boarding()),
+                "approved_by_operator: " + oneLine(d.approved_by_operator()),
+                "tanggal_approve_manifest: " + d.tanggal_approve_manifest().format(QR_TIMESTAMP),
+                "id_pkk: " + oneLine(d.id_pkk()));
     }
 
     private List<Row> vehicleRows(List<VehicleData> vehicles) throws IOException {
@@ -244,7 +245,7 @@ public class ManifestPdfService {
         sheet.y += row.height();
     }
 
-    private void drawRecap(Sheet sheet, DocumentData d, Recap recap, SignatureData signature, String qrJson)
+    private void drawRecap(Sheet sheet, DocumentData d, Recap recap, SignatureData signature, String qrText)
             throws IOException {
         List<DetailLine> left = passengerLines(recap);
         List<DetailLine> right = vehicleLines(recap);
@@ -273,7 +274,7 @@ public class ManifestPdfService {
         drawSplitRow(sheet, "Jumlah Penumpang Dalam Kendaraan : " + recap.inVehicles(),
                 "Jumlah Hewan dan Curah : " + recap.cargoTotal());
         drawSplitRow(sheet, "Jumlah Penumpang : " + (recap.pedestrians() + recap.inVehicles()), "");
-        drawSignatureAndQr(sheet, signature, qrJson);
+        drawSignatureAndQr(sheet, signature, qrText);
     }
 
     private List<DetailLine> passengerLines(Recap recap) throws IOException {
@@ -320,7 +321,7 @@ public class ManifestPdfService {
         }
     }
 
-    private void drawSignatureAndQr(Sheet sheet, SignatureData s, String qrJson) throws IOException {
+    private void drawSignatureAndQr(Sheet sheet, SignatureData s, String qrText) throws IOException {
         float top = sheet.y;
         box(sheet, LEFT, top, WIDTH, SIGNATURE_H);
         vertical(sheet, SPLIT, top, top + SIGNATURE_H);
@@ -328,16 +329,16 @@ public class ManifestPdfService {
         float maxWidth = RIGHT - SPLIT - 8f;
         centerFitted(sheet, NORMAL, center, top + 13f, maxWidth, "AN " + upper(s.atasNama()));
         centerFitted(sheet, NORMAL, center, top + 24f, maxWidth, oneLine(s.jabatan()) + " " + oneLine(s.namaKapal()));
-        if (qrJson != null) {
-            drawQr(sheet, qrJson, center - QR_SIZE / 2f, top + 28f);
+        if (qrText != null) {
+            drawQr(sheet, qrText, center - QR_SIZE / 2f, top + 28f);
         }
         centerFitted(sheet, BOLD, center, top + 109f, maxWidth, upper(s.atasNama()));
         sheet.y += SIGNATURE_H;
     }
 
-    private void drawQr(Sheet sheet, String qrJson, float x, float top) throws IOException {
+    private void drawQr(Sheet sheet, String qrText, float x, float top) throws IOException {
         try {
-            BitMatrix bits = new QRCodeWriter().encode(qrJson, BarcodeFormat.QR_CODE, 0, 0,
+            BitMatrix bits = new QRCodeWriter().encode(qrText, BarcodeFormat.QR_CODE, 0, 0,
                     Map.of(EncodeHintType.ERROR_CORRECTION, ErrorCorrectionLevel.M,
                            EncodeHintType.MARGIN, 2));
             float module = QR_SIZE / bits.getWidth();

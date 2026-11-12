@@ -1,7 +1,8 @@
 package id.co.example.manifest.api;
 
 import id.co.example.manifest.dto.ManifestRequest;
-import id.co.example.manifest.security.DatePasswordGate;
+import id.co.example.manifest.security.PdfDownloadTickets;
+import id.co.example.manifest.security.PdfPasswordGate;
 import id.co.example.manifest.service.ManifestPdfService;
 import id.co.example.manifest.storage.LocalPdfStorage;
 import jakarta.validation.Valid;
@@ -27,6 +28,7 @@ import java.time.ZoneId;
 import static org.springframework.http.HttpStatus.BAD_REQUEST;
 import static org.springframework.http.HttpStatus.INTERNAL_SERVER_ERROR;
 import static org.springframework.http.HttpStatus.NOT_FOUND;
+import static org.springframework.http.HttpStatus.SEE_OTHER;
 import static org.springframework.http.HttpStatus.UNAUTHORIZED;
 import static org.springframework.http.HttpStatus.TOO_MANY_REQUESTS;
 
@@ -35,17 +37,19 @@ import static org.springframework.http.HttpStatus.TOO_MANY_REQUESTS;
 public class ManifestPdfController {
     private final ManifestPdfService generator;
     private final LocalPdfStorage storage;
-    private final DatePasswordGate passwordGate;
+    private final PdfPasswordGate passwordGate;
+    private final PdfDownloadTickets downloadTickets;
     private final String publicBaseUrl;
     private final ZoneId timezone;
 
     public ManifestPdfController(ManifestPdfService generator, LocalPdfStorage storage,
-                                 DatePasswordGate passwordGate,
+                                 PdfPasswordGate passwordGate, PdfDownloadTickets downloadTickets,
                                  @Value("${manifest.public-base-url:http://localhost:8080}") String publicBaseUrl,
                                  @Value("${manifest.access.zone:Asia/Jakarta}") String timezone) {
         this.generator = generator;
         this.storage = storage;
         this.passwordGate = passwordGate;
+        this.downloadTickets = downloadTickets;
         this.timezone = ZoneId.of(timezone);
         String configured = publicBaseUrl.replaceAll("/+$", "");
         URI base = URI.create(configured);
@@ -63,12 +67,12 @@ public class ManifestPdfController {
     public ResponseEntity<GeneratedPdfResponse> generatePdf(@Valid @RequestBody ManifestRequest request) {
         try {
             byte[] pdf = generator.generate(request);
-            String token = storage.save(pdf);
+            String token = storage.save(pdf, PdfPasswordGate.digest(pdfPassword(request.document().cutOffId())));
             String url = publicBaseUrl + "/api/v1/manifests/files/" + token;
             return ResponseEntity.status(201)
                     .header(HttpHeaders.CACHE_CONTROL, "no-store")
                     .body(new GeneratedPdfResponse(token, url,
-                            OffsetDateTime.now(timezone).toString(), "DDMMYYYY", timezone.getId()));
+                            OffsetDateTime.now(timezone).toString(), "DDMMYYYY"));
         } catch (IllegalArgumentException ex) {
             throw new ResponseStatusException(BAD_REQUEST, "Data manifest tidak valid", ex);
         } catch (IOException ex) {
@@ -82,18 +86,46 @@ public class ManifestPdfController {
         return htmlResponse(200, passwordPage(token, null));
     }
 
-    /** Browser form POST: when password is correct, PDF is rendered inline in browser. */
+    /**
+     * Browser form POST: when the password (the manifest's cutOffId) is correct, redirects (303) to a GET
+     * URL with a short-lived ticket. The PDF is served there, so the browser's download button can fetch it
+     * again; a POST response cannot be re-fetched without resending the password.
+     */
     @PostMapping(value = "/files/{token}/unlock", consumes = MediaType.APPLICATION_FORM_URLENCODED_VALUE)
     public ResponseEntity<?> unlock(@PathVariable String token, @RequestParam("password") String password) {
         ensureExists(token);
-        DatePasswordGate.CheckResult result = passwordGate.check(token, password);
-        if (result == DatePasswordGate.CheckResult.LOCKED) {
+        byte[] expected;
+        try {
+            expected = storage.readPasswordDigest(token);
+        } catch (IOException | IllegalArgumentException ex) {
+            throw new ResponseStatusException(INTERNAL_SERVER_ERROR, "Gagal membaca password PDF", ex);
+        }
+        PdfPasswordGate.CheckResult result = passwordGate.check(token, password, expected);
+        if (result == PdfPasswordGate.CheckResult.LOCKED) {
             return htmlResponse(TOO_MANY_REQUESTS.value(),
                     passwordPage(token, "Terlalu banyak percobaan. Coba lagi dalam 15 menit."));
         }
-        if (result == DatePasswordGate.CheckResult.WRONG) {
+        if (result == PdfPasswordGate.CheckResult.WRONG) {
             return htmlResponse(UNAUTHORIZED.value(),
-                    passwordPage(token, "Password salah. Gunakan tanggal hari ini (DDMMYYYY) WIB."));
+                    passwordPage(token, "Password salah. Gunakan tanggal cutoff/keberangkatan (DDMMYYYY)."));
+        }
+        // Relative location: works the same behind a reverse proxy. Token and ticket are URL-safe.
+        return ResponseEntity.status(SEE_OTHER)
+                .header(HttpHeaders.LOCATION, "/api/v1/manifests/files/" + token + "/pdf?ticket=" + downloadTickets.issue(token))
+                .header(HttpHeaders.CACHE_CONTROL, "no-store")
+                .header("Referrer-Policy", "no-referrer")
+                .build();
+    }
+
+    /** Serves the PDF inline to a holder of a valid ticket; an expired or wrong ticket goes back to the password page. */
+    @GetMapping("/files/{token}/pdf")
+    public ResponseEntity<byte[]> pdf(@PathVariable String token, @RequestParam(value = "ticket", required = false) String ticket) {
+        ensureExists(token);
+        if (!downloadTickets.isValid(token, ticket)) {
+            return ResponseEntity.status(SEE_OTHER)
+                    .header(HttpHeaders.LOCATION, "/api/v1/manifests/files/" + token)
+                    .header(HttpHeaders.CACHE_CONTROL, "no-store")
+                    .build();
         }
         try {
             byte[] pdf = storage.read(token);
@@ -109,6 +141,14 @@ public class ManifestPdfController {
         } catch (IOException ex) {
             throw new ResponseStatusException(INTERNAL_SERVER_ERROR, "Gagal membaca file PDF", ex);
         }
+    }
+
+    /**
+     * The PDF password is the date in the first 8 digits of cutOffId (YYYYMMDD), written day first:
+     * 20241023143733008048400 becomes 23102024. Later digits are ignored.
+     */
+    static String pdfPassword(String cutOffId) {
+        return cutOffId.substring(6, 8) + cutOffId.substring(4, 6) + cutOffId.substring(0, 4);
     }
 
     private void ensureExists(String token) {
@@ -149,7 +189,7 @@ public class ManifestPdfController {
                 </style></head><body><main class="card">
                 <h1>Manifest Penumpang Kendaraan</h1>
                 <p>Dokumen ini dilindungi password. Masukkan tanggal hari ini dengan format
-                <b>DDMMYYYY</b> (waktu Jakarta/WIB).</p>
+                <b>DDMMYYYY</b> (contoh: 25122026)</p>
                 %s
                 <form method="POST" action="/api/v1/manifests/files/%s/unlock">
                 <label for="password">Password</label>
@@ -162,6 +202,5 @@ public class ManifestPdfController {
                 """.formatted(errorHtml, token);
     }
 
-    public record GeneratedPdfResponse(String fileId, String url, String createdAt,
-                                       String passwordFormat, String passwordTimezone) {}
+    public record GeneratedPdfResponse(String fileId, String url, String createdAt, String passwordFormat) {}
 }

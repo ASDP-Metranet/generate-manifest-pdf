@@ -1,43 +1,48 @@
 package id.co.example.manifest.security;
 
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
+import java.security.NoSuchAlgorithmException;
 import java.time.Clock;
 import java.time.Duration;
 import java.time.Instant;
-import java.time.LocalDate;
-import java.time.ZoneId;
-import java.time.format.DateTimeFormatter;
 import java.util.concurrent.ConcurrentHashMap;
 
-/** Access date (not document date) in configured timezone, default Asia/Jakarta. */
+/**
+ * Checks the password of a stored PDF (its cutOffId written DDMMYYYY) against the digest saved with it,
+ * and locks a token for 15 minutes after 5 wrong attempts.
+ */
 @Service
-public class DatePasswordGate {
-    private static final DateTimeFormatter FORMAT = DateTimeFormatter.ofPattern("ddMMuuuu");
+public class PdfPasswordGate {
     private static final int MAX_FAILURES = 5;
     private static final Duration LOCK_DURATION = Duration.ofMinutes(15);
     private final Clock clock;
     private final ConcurrentHashMap<String, Attempts> attempts = new ConcurrentHashMap<>();
-    
+
     @Autowired
-    public DatePasswordGate(@Value("${manifest.access.zone:Asia/Jakarta}") String timezone) {
-        this(Clock.system(ZoneId.of(timezone)));
+    public PdfPasswordGate() {
+        this(Clock.systemUTC());
     }
 
     // package-private constructor for deterministic unit tests
-    DatePasswordGate(Clock clock) {
+    PdfPasswordGate(Clock clock) {
         this.clock = clock;
     }
 
-    public String todayPassword() {
-        return LocalDate.now(clock).format(FORMAT);
+    /** SHA-256 of the password: what is stored next to the PDF instead of the password itself. */
+    public static byte[] digest(String password) {
+        try {
+            return MessageDigest.getInstance("SHA-256")
+                    .digest((password == null ? "" : password).getBytes(StandardCharsets.UTF_8));
+        } catch (NoSuchAlgorithmException ex) {
+            throw new IllegalStateException("SHA-256 tidak tersedia", ex);
+        }
     }
 
-    public CheckResult check(String token, String providedPassword) {
+    public CheckResult check(String token, String providedPassword, byte[] expectedDigest) {
         Instant now = clock.instant();
         Attempts state = attempts.computeIfAbsent(token, unused -> new Attempts());
         synchronized (state) {
@@ -48,9 +53,7 @@ public class DatePasswordGate {
                 state.failures = 0;
                 state.lockedUntil = null;
             }
-            byte[] actual = (providedPassword == null ? "" : providedPassword).getBytes(StandardCharsets.UTF_8);
-            byte[] expected = todayPassword().getBytes(StandardCharsets.UTF_8);
-            if (MessageDigest.isEqual(expected, actual)) {
+            if (MessageDigest.isEqual(expectedDigest, digest(providedPassword))) {
                 attempts.remove(token, state);
                 return CheckResult.ALLOWED;
             }

@@ -10,4 +10,4 @@ $result = Invoke-RestMethod -Method Post -Uri "$Base/api/v1/manifests/generate-p
     -ContentType "application/json" -Body $body
 $result | ConvertTo-Json | Set-Content -Encoding UTF8 manifest-link.json
 Write-Host "URL dokumen:" $result.url
-Write-Host "Buka URL, lalu masukkan tanggal hari ini DDMMYYYY (WIB)."
+Write-Host "Buka URL, lalu masukkan tanggal cutoff/keberangkatan (DDMMYYYY) sebagai password."

@@ -7,10 +7,14 @@ import jakarta.validation.constraints.Min;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotEmpty;
 import jakarta.validation.constraints.NotNull;
+import jakarta.validation.constraints.Pattern;
 import jakarta.validation.constraints.Size;
 
 import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.time.format.DateTimeFormatter;
+import java.time.format.DateTimeParseException;
+import java.time.format.ResolverStyle;
 import java.util.List;
 
 /** JSON contract: vehicles, pedestrians and cargo are optional lists, but at least one must have data. */
@@ -32,7 +36,13 @@ public record ManifestRequest(
         return !vehicles.isEmpty() || !pedestrians.isEmpty() || !cargo.isEmpty();
     }
 
+    /**
+     * cutOffId is a digit string that starts with its date, e.g. 20241023143733008048400 (YYYYMMDD + more digits).
+     * Only those first 8 digits are used: they set the PDF password, written DDMMYYYY.
+     */
     public record DocumentData(
+            @NotBlank @Pattern(regexp = "\\d{8,100}", message = "cutOffId harus angka 8-100 digit, diawali tanggal YYYYMMDD")
+            String cutOffId,
             @NotBlank @Size(max=80) String manifestId,
             @NotNull LocalDate tanggal,
             @NotBlank @Size(max=120) String namaKapal,
@@ -44,7 +54,24 @@ public record ManifestRequest(
             @Size(max=120) String dermaga,
             @Size(max=20) String waktuTiba,
             @Size(max=20) String waktuBerangkat
-    ) {}
+    ) {
+        private static final DateTimeFormatter CUT_OFF_FORMAT =
+                DateTimeFormatter.ofPattern("uuuuMMdd").withResolverStyle(ResolverStyle.STRICT);
+
+        /** Rejects a cutOffId whose first 8 digits are not a real date, such as 20261332... Format errors come from @Pattern. */
+        @AssertTrue(message = "8 digit awal cutOffId bukan tanggal yang valid (YYYYMMDD)")
+        public boolean isCutOffIdRealDate() {
+            if (cutOffId == null || !cutOffId.matches("\\d{8,100}")) {
+                return true;
+            }
+            try {
+                LocalDate.parse(cutOffId.substring(0, 8), CUT_OFF_FORMAT);
+                return true;
+            } catch (DateTimeParseException ex) {
+                return false;
+            }
+        }
+    }
 
     public record VehicleData(
             @NotBlank @Size(max=32) String nomorKendaraan,

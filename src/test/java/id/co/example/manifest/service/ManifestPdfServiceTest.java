@@ -13,7 +13,6 @@ import org.apache.pdfbox.pdmodel.PDDocument;
 import org.apache.pdfbox.pdmodel.common.PDRectangle;
 import org.apache.pdfbox.text.PDFTextStripper;
 import org.junit.jupiter.api.Test;
-import tools.jackson.databind.json.JsonMapper;
 
 import java.nio.charset.StandardCharsets;
 import java.time.Duration;
@@ -25,17 +24,15 @@ import java.util.List;
 import static org.junit.jupiter.api.Assertions.*;
 
 class ManifestPdfServiceTest {
-    private final ManifestPdfService service = new ManifestPdfService(JsonMapper.builder().build());
+    private final ManifestPdfService service = new ManifestPdfService();
 
     @Test
-    void qrContainsOnlySpecifiedApprovalFields() {
-        String json = service.buildQrJson(document("PKK123213ABC"));
-        assertTrue(json.contains("\"id_boarding\":\"B22608190999\""));
-        assertTrue(json.contains("\"approved_by_operator\":\"Dharma Lautan Utama\""));
-        assertTrue(json.contains("\"tanggal_approve_manifest\":\"2026-08-17T17:17:10\""));
-        assertTrue(json.contains("\"id_pkk\":\"PKK123213ABC\""));
-        assertFalse(json.contains("manifestId"));
-        assertFalse(json.contains("namaKapal"));
+    void qrIsPlainTextWithOnlyTheFourApprovalFields() {
+        assertEquals("""
+                id_boarding: B22608190999
+                approved_by_operator: Dharma Lautan Utama
+                tanggal_approve_manifest: 2026/08/17 17:17:10
+                id_pkk: PKK123213ABC""", service.buildQrText(document("PKK123213ABC")));
     }
 
     @Test
@@ -142,6 +139,20 @@ class ManifestPdfServiceTest {
         }
     }
 
+    @Test
+    void cutOffIdMustBeARealDateInYyyyMmDd() {
+        try (var factory = Validation.buildDefaultValidatorFactory()) {
+            Validator validator = factory.getValidator();
+            assertTrue(validator.validate(document("PKK", "20261029")).isEmpty());
+            assertTrue(validator.validate(document("PKK", "20240229")).isEmpty());
+            assertTrue(validator.validate(document("PKK", "20241023143733008048400")).isEmpty());
+            for (String invalid : new String[]{null, "", "2026-10-29", "29102026", "20261332", "20250229", "2026102",
+                    "20241323143733008048400", "2024102314373300804840A", "2024-10-23143733"}) {
+                assertFalse(validator.validate(document("PKK", invalid)).isEmpty(), "cutOffId: " + invalid);
+            }
+        }
+    }
+
     private static String text(byte[] bytes) throws Exception {
         try (PDDocument pdf = Loader.loadPDF(bytes)) {
             return new PDFTextStripper().getText(pdf);
@@ -170,8 +181,12 @@ class ManifestPdfServiceTest {
     }
 
     private static DocumentData document(String idPkk) {
+        return document(idPkk, "20260817");
+    }
+
+    private static DocumentData document(String idPkk, String cutOffId) {
         return new DocumentData(
-                "MNF-20260817-001", LocalDate.of(2026, 8, 17),
+                cutOffId, "MNF-20260817-001", LocalDate.of(2026, 8, 17),
                 "DHARMA RUCITRA", "DHARMA LAUTAN UTAMA", "B22608190999",
                 "Dharma Lautan Utama", LocalDateTime.of(2026, 8, 17, 17, 17, 10),
                 idPkk, "Dermaga 1", null, "22:24");

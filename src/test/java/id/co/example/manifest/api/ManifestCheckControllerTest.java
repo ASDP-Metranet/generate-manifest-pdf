@@ -40,6 +40,18 @@ class ManifestCheckControllerTest {
     }
 
     @Test
+    void responseIncludesTheNewManifestColumns() throws Exception {
+        var result = mvc(() -> Optional.of(ROW))
+                .perform(get("/checkmanifets" + QUERY))
+                .andExpect(status().isOk());
+        for (String column : new String[]{"tootlip", "id_pkk", "manifest_id", "id_boarding",
+                "approved_by_operator", "manifest_approved_at", "manifest_document_url"}) {
+            result.andExpect(jsonPath("$.data." + column).hasJsonPath());
+        }
+        result.andExpect(jsonPath("$.data.manifestDocumentUrl").doesNotExist());
+    }
+
+    @Test
     void correctlySpelledPathWorksToo() throws Exception {
         mvc(() -> Optional.of(ROW))
                 .perform(get("/checkmanifest" + QUERY))

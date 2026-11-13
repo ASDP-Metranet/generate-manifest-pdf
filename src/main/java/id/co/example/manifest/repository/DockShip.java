@@ -104,6 +104,30 @@ public class DockShip {
     @JsonProperty("tootlip")
     private Boolean tootlip;
 
+    @Column(name = "id_pkk")
+    @JsonProperty("id_pkk")
+    private String idPkk;
+
+    @Column(name = "manifest_id")
+    @JsonProperty("manifest_id")
+    private String manifestId;
+
+    @Column(name = "id_boarding")
+    @JsonProperty("id_boarding")
+    private String idBoarding;
+
+    @Column(name = "approved_by_operator")
+    @JsonProperty("approved_by_operator")
+    private String approvedByOperator;
+
+    @Column(name = "manifest_approved_at")
+    @JsonProperty("manifest_approved_at")
+    private LocalDateTime manifestApprovedAt;
+
+    @Column(name = "manifest_document_url")
+    @JsonProperty("manifest_document_url")
+    private String manifestDocumentUrl;
+
     protected DockShip() {
     }
 
@@ -137,6 +161,12 @@ public class DockShip {
     public LocalDateTime getUpdatedAt() { return updatedAt; }
     public Boolean getApproveManifest() { return approveManifest; }
     public Boolean getTootlip() { return tootlip; }
+    public String getIdPkk() { return idPkk; }
+    public String getManifestId() { return manifestId; }
+    public String getIdBoarding() { return idBoarding; }
+    public String getApprovedByOperator() { return approvedByOperator; }
+    public LocalDateTime getManifestApprovedAt() { return manifestApprovedAt; }
+    public String getManifestDocumentUrl() { return manifestDocumentUrl; }
 
     /**
      * Kept in the JSON for existing clients. The cut_off_id column was dropped from dock_ship,

@@ -17,7 +17,10 @@ import java.time.format.DateTimeParseException;
 import java.time.format.ResolverStyle;
 import java.util.List;
 
-/** JSON contract: vehicles, pedestrians and cargo are optional lists, but at least one must have data. */
+/**
+ * JSON contract: vehicles, pedestrians and cargo are optional lists and may all be empty;
+ * the PDF then shows the three tables with headers only and a recap of zeros.
+ */
 public record ManifestRequest(
         @NotNull @Valid DocumentData document,
         @Size(max = 10000) List<@NotNull @Valid VehicleData> vehicles,
@@ -29,11 +32,6 @@ public record ManifestRequest(
         vehicles = vehicles == null ? List.of() : vehicles;
         pedestrians = pedestrians == null ? List.of() : pedestrians;
         cargo = cargo == null ? List.of() : cargo;
-    }
-
-    @AssertTrue(message = "vehicles, pedestrians, atau cargo harus berisi minimal satu data")
-    public boolean isManifestFilled() {
-        return !vehicles.isEmpty() || !pedestrians.isEmpty() || !cargo.isEmpty();
     }
 
     /**

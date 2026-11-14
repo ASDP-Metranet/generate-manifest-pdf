@@ -171,7 +171,7 @@ Body (file lengkap: `examples/request.json`):
 
 Aturan field:
 
-- `vehicles`, `pedestrians`, dan `cargo` opsional, tetapi minimal salah satunya harus berisi data. Daftar yang kosong tetap ditampilkan sebagai tabel berisi header saja.
+- `vehicles`, `pedestrians`, dan `cargo` opsional dan boleh kosong semua (`[]` atau tidak dikirim). Daftar yang kosong tetap ditampilkan sebagai tabel berisi header saja, dan rekap menghitungnya sebagai 0.
 - `passengers[].kategori` dan `pedestrians[].kategori` opsional. Nilainya tampil di kolom Golongan dan menjadi kelompok pada rekap. Jika kosong, kolom Golongan memakai golongan kendaraan dan rekap menghitungnya sebagai Penumpang Dewasa.
 - `document.dermaga`, `document.waktuTiba`, dan `document.waktuBerangkat` opsional dan hanya tampil pada rekap.
 - `document.id_pkk` opsional. Jika field tidak dikirim, bernilai `null`, atau berupa string kosong, PDF tetap dibuat tetapi tanpa QR Code.

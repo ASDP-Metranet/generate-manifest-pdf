@@ -129,14 +129,25 @@ class ManifestPdfServiceTest {
     }
 
     @Test
-    void validationRequiresAtLeastOneManifestEntry() {
+    void allThreeListsMayBeEmpty() throws Exception {
         try (var factory = Validation.buildDefaultValidatorFactory()) {
             Validator validator = factory.getValidator();
-            assertFalse(validator.validate(new ManifestRequest(
+            assertTrue(validator.validate(new ManifestRequest(
                     document("PKK123213ABC"), null, null, null, signature())).isEmpty());
             assertTrue(validator.validate(new ManifestRequest(
-                    document("PKK123213ABC"), null, List.of(passenger("SITI", "P", null)), null, signature())).isEmpty());
+                    document("PKK123213ABC"), List.of(), List.of(), List.of(), signature())).isEmpty());
         }
+        byte[] bytes = service.generate(request(document("PKK123213ABC"), List.of(), List.of(), List.of()));
+        try (PDDocument pdf = Loader.loadPDF(bytes)) {
+            assertEquals(1, pdf.getNumberOfPages());
+        }
+        String text = text(bytes);
+        assertTrue(text.contains("DAFTAR PENUMPANG PADA KENDARAAN"));
+        assertTrue(text.contains("DAFTAR PENUMPANG PEJALAN KAKI"));
+        assertTrue(text.contains("DAFTAR BARANG CURAH DAN HEWAN"));
+        assertTrue(text.contains("Jumlah Kendaraan : 0"));
+        assertTrue(text.contains("Jumlah Penumpang : 0"));
+        assertTrue(text.contains("Jumlah Hewan dan Curah : 0"));
     }
 
     @Test

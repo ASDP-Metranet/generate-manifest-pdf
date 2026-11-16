@@ -5,12 +5,14 @@ import ch.qos.logback.classic.spi.ILoggingEvent;
 import ch.qos.logback.core.read.ListAppender;
 import id.co.example.manifest.repository.DockShip;
 import id.co.example.manifest.repository.DockShipRepository;
+import id.co.example.manifest.repository.GeneratedPdfManifestRepository;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.dao.DataAccessResourceFailureException;
 import org.springframework.test.context.DynamicPropertyRegistry;
 import org.springframework.test.context.DynamicPropertySource;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
@@ -35,6 +37,10 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.argThat;
+import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.when;
 
 /** End-to-end Basic Auth checks through the embedded server and the full Spring Security chain. */
@@ -45,6 +51,7 @@ class BasicAuthIntegrationTest {
 
     @Value("${local.server.port}") int port;
     @MockitoBean DockShipRepository dockShips;
+    @MockitoBean GeneratedPdfManifestRepository generatedManifests;
 
     private final List<HttpResponse<String>> responses = new ArrayList<>();
     private ListAppender<ILoggingEvent> logs;
@@ -115,11 +122,24 @@ class BasicAuthIntegrationTest {
     @Test
     void correctCredentialsReachProtectedEndpoints() {
         assertEquals(201, call(generatePdf(port, basic(ADMIN, PASSWORD))).statusCode());
+        verify(generatedManifests).save(
+                eq("20261029143733008048400"),
+                argThat(payload -> payload.contains("\"manifestId\":\"MNF-20261029-001\"")
+                        && !payload.contains("cutOffIdRealDate")),
+                eq("PKK123213ABC"));
 
         HttpResponse<String> check = call(get(CHECK_PATH).header("Authorization", basic(ADMIN, PASSWORD)));
         assertEquals(200, check.statusCode());
         assertTrue(check.body().contains("\"found\":true"));
         assertTrue(logs.list.stream().anyMatch(e -> e.getFormattedMessage().equals("Authentication success user=" + ADMIN)));
+    }
+
+    @Test
+    void generateReturns503WhenAuditInsertFails() {
+        doThrow(new DataAccessResourceFailureException("down"))
+                .when(generatedManifests).save(any(), any(), any());
+
+        assertEquals(503, call(generatePdf(port, basic(ADMIN, PASSWORD))).statusCode());
     }
 
     @Test

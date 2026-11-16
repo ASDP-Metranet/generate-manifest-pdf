@@ -21,4 +21,11 @@ public interface DockShipRepository extends Repository<DockShip, String> {
     @Modifying
     @Query("UPDATE DockShip d SET d.tootlip = :value WHERE d.id = :id")
     int updateTootlip(@Param("id") String id, @Param("value") boolean value);
+
+    /** Atomically updates tootlip and id_pkk when nomorPkk is supplied by the caller. */
+    @Transactional
+    @Modifying
+    @Query("UPDATE DockShip d SET d.tootlip = :value, d.idPkk = :nomorPkk WHERE d.id = :id")
+    int updateTootlipAndIdPkk(@Param("id") String id, @Param("value") boolean value,
+                              @Param("nomorPkk") String nomorPkk);
 }

@@ -111,6 +111,46 @@ class ManifestCheckControllerTest {
     }
 
     @Test
+    void nomorPkkUpdatesIdPkkTogetherWithTootlip() throws Exception {
+        List<String> updates = new ArrayList<>();
+        mvc(Optional::empty, (id, value) -> { throw new AssertionError("wrong update method"); },
+                (id, value, nomorPkk) -> {
+                    updates.add(id + "=" + value + "," + nomorPkk);
+                    return 1;
+                })
+                .perform(post("/manifestnotapprove")
+                        .param("id", "ABC")
+                        .param("value", "0")
+                        .param("nomorPkk", "  PKK-123  "))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.updated").value(true))
+                .andExpect(jsonPath("$.tootlip").value(0));
+        assertEquals(List.of("ABC=false,PKK-123"), updates);
+    }
+
+    @Test
+    void blankNomorPkkDoesNotOverwriteExistingIdPkk() throws Exception {
+        List<String> updates = new ArrayList<>();
+        mvc(Optional::empty, (id, value) -> { updates.add(id + "=" + value); return 1; },
+                (id, value, nomorPkk) -> { throw new AssertionError("must not overwrite id_pkk"); })
+                .perform(post("/manifestnotapprove")
+                        .param("id", "ABC")
+                        .param("nomorPkk", "   "))
+                .andExpect(status().isOk());
+        assertEquals(List.of("ABC=true"), updates);
+    }
+
+    @Test
+    void nomorPkkLongerThanDatabaseFieldIsRejected() throws Exception {
+        mvc(Optional::empty, (id, value) -> { throw new AssertionError("must not update"); },
+                (id, value, nomorPkk) -> { throw new AssertionError("must not update"); })
+                .perform(post("/manifestnotapprove")
+                        .param("id", "ABC")
+                        .param("nomorPkk", "X".repeat(81)))
+                .andExpect(status().isBadRequest());
+    }
+
+    @Test
     void valueOtherThanZeroOrOneIsRejected() throws Exception {
         MockMvc mvc = mvc(Optional::empty, (id, value) -> { throw new AssertionError("must not update"); });
         for (String value : new String[]{"2", "-1", "10", "abc", "1.5"}) {
@@ -147,6 +187,13 @@ class ManifestCheckControllerTest {
     }
 
     private static MockMvc mvc(Supplier<Optional<DockShip>> result, ToIntBiFunction<String, Boolean> update) {
+        return mvc(result, update, (id, value, nomorPkk) -> {
+            throw new AssertionError("must not update id_pkk");
+        });
+    }
+
+    private static MockMvc mvc(Supplier<Optional<DockShip>> result, ToIntBiFunction<String, Boolean> update,
+                               PkkUpdate updateWithPkk) {
         DockShipRepository repository = new DockShipRepository() {
             @Override
             public Optional<DockShip> findByIdAndBranchIdAndHarborIdAndRouteId(
@@ -158,7 +205,17 @@ class ManifestCheckControllerTest {
             public int updateTootlip(String id, boolean value) {
                 return update.applyAsInt(id, value);
             }
+
+            @Override
+            public int updateTootlipAndIdPkk(String id, boolean value, String nomorPkk) {
+                return updateWithPkk.apply(id, value, nomorPkk);
+            }
         };
         return MockMvcBuilders.standaloneSetup(new ManifestCheckController(repository)).build();
+    }
+
+    @FunctionalInterface
+    private interface PkkUpdate {
+        int apply(String id, boolean value, String nomorPkk);
     }
 }

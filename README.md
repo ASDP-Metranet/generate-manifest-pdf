@@ -189,6 +189,8 @@ Response HTTP **201** (contoh token berbeda pada setiap request):
 }
 ```
 
+Setelah PDF berhasil dibuat dan disimpan, service mencatat request ke tabel `generate_pdf_manifest`: `cut_off_id` diambil dari `document.cutOffId`, `payload_generate` berisi JSON request, dan `pkk_number` diambil dari `document.id_pkk`. Jika insert database gagal, endpoint mengembalikan HTTP **503**.
+
 Perintah cURL:
 
 ```bash
@@ -304,11 +306,11 @@ Response HTTP **200** berisi `{"found": true, "data": { ...kolom dock_ship... }}
 
 ### Manifest not approve
 
-**POST** `/manitfestnotapprove?id={id}&value={0|1}` (alias `/manifestnotapprove`), memakai Basic Auth dengan authority `MANIFEST_APPROVAL_RESET`. Mengisi `dock_ship.tootlip` dengan `value` untuk baris dengan `id` tersebut (nama kolom di database memang `tootlip`); `approve_manifest` tidak diubah. `value` hanya boleh `0` atau `1`, dan bila tidak dikirim dianggap `1`; kolom lain tidak diubah.
+**POST** `/manitfestnotapprove?id={id}&value={0|1}&nomorPkk={nomorPkk}` (alias `/manifestnotapprove`), memakai Basic Auth dengan authority `MANIFEST_APPROVAL_RESET`. Mengisi `dock_ship.tootlip` dengan `value` untuk baris dengan `id` tersebut (nama kolom di database memang `tootlip`). Parameter `nomorPkk` opsional; jika dikirim dengan nilai non-kosong, nilainya juga disimpan ke `dock_ship.id_pkk` dalam update yang sama. Jika tidak dikirim atau kosong, `id_pkk` tidak diubah. `approve_manifest` tidak diubah. `value` hanya boleh `0` atau `1`, dan bila tidak dikirim dianggap `1`.
 
 ```bash
 curl -sS -X POST -u "$API_USER:$API_PASSWORD" \
-  "http://127.0.0.1:8080/manitfestnotapprove?id=ID_DOCK_SHIP&value=1"
+  "http://127.0.0.1:8080/manifestnotapprove?id=ID_DOCK_SHIP&value=1&nomorPkk=PKK-123"
 ```
 
 Response HTTP **200** `{"id": "...", "updated": true, "tootlip": <value>}`, termasuk jika nilainya sudah sama. `id` tidak ada: HTTP **404** `{"updated": false, "tootlip": null}`. `id` kosong, atau `value` selain `0`/`1`: HTTP **400**. Database tidak dapat diakses: HTTP **503**.
@@ -317,7 +319,7 @@ Response HTTP **200** `{"id": "...", "updated": true, "tootlip": <value>}`, term
 
 Koneksi database diatur lewat `MANIFEST_DB_URL`, `MANIFEST_DB_USERNAME`, dan `MANIFEST_DB_PASSWORD` di `.env`. Ketiganya wajib diisi.
 
-Query memakai Spring Data JPA (Hibernate), tanpa SQL manual: entity `DockShip` dan `DockShipRepository`. Repository hanya punya method cek (transaksi read-only) dan update `tootlip`; tidak ada method simpan atau hapus, dan `ddl-auto=none` sehingga struktur tabel tidak pernah diubah.
+Query memakai Spring Data JPA (Hibernate), tanpa SQL manual: entity `DockShip` dan `DockShipRepository`. Repository hanya punya method cek (transaksi read-only), update `tootlip`, serta update atomik `tootlip` dan `id_pkk`; tidak ada method simpan atau hapus, dan `ddl-auto=none` sehingga struktur tabel tidak pernah diubah.
 
 ## 9. Autentikasi (HTTP Basic, Spring Security)
 

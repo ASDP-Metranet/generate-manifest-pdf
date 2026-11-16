@@ -1,5 +1,6 @@
 package id.co.example.manifest.dto;
 
+import com.fasterxml.jackson.annotation.JsonIgnore;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.AssertTrue;
 import jakarta.validation.constraints.Max;
@@ -57,6 +58,7 @@ public record ManifestRequest(
                 DateTimeFormatter.ofPattern("uuuuMMdd").withResolverStyle(ResolverStyle.STRICT);
 
         /** Rejects a cutOffId whose first 8 digits are not a real date, such as 20261332... Format errors come from @Pattern. */
+        @JsonIgnore
         @AssertTrue(message = "8 digit awal cutOffId bukan tanggal yang valid (YYYYMMDD)")
         public boolean isCutOffIdRealDate() {
             if (cutOffId == null || !cutOffId.matches("\\d{8,100}")) {

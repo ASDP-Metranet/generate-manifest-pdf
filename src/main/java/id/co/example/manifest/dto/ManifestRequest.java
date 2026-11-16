@@ -35,6 +35,11 @@ public record ManifestRequest(
         cargo = cargo == null ? List.of() : cargo;
     }
 
+    /** Returns the same manifest payload with only document.id_pkk replaced. */
+    public ManifestRequest withIdPkk(String idPkk) {
+        return new ManifestRequest(document.withIdPkk(idPkk), vehicles, pedestrians, cargo, signature);
+    }
+
     /**
      * cutOffId is a digit string that starts with its date, e.g. 20241023143733008048400 (YYYYMMDD + more digits).
      * Only those first 8 digits are used: they set the PDF password, written DDMMYYYY.
@@ -70,6 +75,11 @@ public record ManifestRequest(
             } catch (DateTimeParseException ex) {
                 return false;
             }
+        }
+
+        public DocumentData withIdPkk(String idPkk) {
+            return new DocumentData(cutOffId, manifestId, tanggal, namaKapal, namaOperator, id_boarding,
+                    approved_by_operator, tanggal_approve_manifest, idPkk, dermaga, waktuTiba, waktuBerangkat);
         }
     }
 

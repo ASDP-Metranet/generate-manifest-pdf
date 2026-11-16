@@ -89,7 +89,8 @@ public class SecurityConfiguration {
                     if (publicPaths.length > 0) {
                         auth.requestMatchers(publicPaths).permitAll();
                     }
-                    auth.requestMatchers(HttpMethod.POST, "/api/v1/manifests/generate-pdf").hasAuthority(MANIFEST_GENERATE)
+                    auth.requestMatchers(HttpMethod.POST, "/api/v1/manifests/generate-pdf", "/retry_generate_pdf")
+                            .hasAuthority(MANIFEST_GENERATE)
                             .requestMatchers(HttpMethod.GET, "/checkmanifets", "/checkmanifest").hasAuthority(MANIFEST_CHECK)
                             .requestMatchers(HttpMethod.POST, "/manitfestnotapprove", "/manifestnotapprove")
                             .hasAuthority(MANIFEST_APPROVAL_RESET)

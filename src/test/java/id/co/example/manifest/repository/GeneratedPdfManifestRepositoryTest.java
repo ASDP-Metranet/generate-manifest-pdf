@@ -1,23 +1,23 @@
 package id.co.example.manifest.repository;
 
 import org.junit.jupiter.api.Test;
-import org.springframework.jdbc.core.JdbcTemplate;
-
-import static org.mockito.ArgumentMatchers.contains;
-import static org.mockito.ArgumentMatchers.eq;
-import static org.mockito.Mockito.mock;
-import static org.mockito.Mockito.verify;
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
 
 class GeneratedPdfManifestRepositoryTest {
     @Test
-    void insertsTheThreeGenerateFields() {
-        JdbcTemplate jdbcTemplate = mock(JdbcTemplate.class);
-        GeneratedPdfManifestRepository repository = new GeneratedPdfManifestRepository(jdbcTemplate);
+    void mapsTheThreeGenerateFieldsToTheEntity() {
+        GeneratedPdfManifest manifest = new GeneratedPdfManifest(
+                "CUT-123", "{\"document\":{}}", "PKK-456");
 
-        repository.save("CUT-123", "{\"document\":{}}", "PKK-456");
+        assertEquals("CUT-123", manifest.getCutOffId());
+        assertEquals("{\"document\":{}}", manifest.getPayloadGenerate());
+        assertEquals("PKK-456", manifest.getPkkNumber());
+    }
 
-        verify(jdbcTemplate).update(
-                contains("INSERT INTO generate_pdf_manifest (cut_off_id, payload_generate, pkk_number)"),
-                eq("CUT-123"), eq("{\"document\":{}}"), eq("PKK-456"));
+    @Test
+    void exposesDerivedOrmQueryForNewestCreateAt() throws Exception {
+        assertNotNull(GeneratedPdfManifestRepository.class.getMethod(
+                "findFirstByCutOffIdOrderByCreateAtDesc", String.class));
     }
 }

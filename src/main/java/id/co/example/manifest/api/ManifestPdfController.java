@@ -1,14 +1,13 @@
 package id.co.example.manifest.api;
 
+import id.co.example.manifest.dto.GeneratedPdfResponse;
 import id.co.example.manifest.dto.ManifestRequest;
-import id.co.example.manifest.repository.GeneratedPdfManifestRepository;
 import id.co.example.manifest.security.PdfDownloadTickets;
 import id.co.example.manifest.security.PdfPasswordGate;
-import id.co.example.manifest.service.ManifestPdfService;
+import id.co.example.manifest.service.ManifestGenerationService;
 import id.co.example.manifest.storage.LocalPdfStorage;
 import jakarta.validation.Valid;
 import org.springframework.dao.DataAccessException;
-import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.ContentDisposition;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
@@ -23,11 +22,6 @@ import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.server.ResponseStatusException;
 
 import java.io.IOException;
-import java.net.URI;
-import java.time.OffsetDateTime;
-import java.time.ZoneId;
-
-import tools.jackson.databind.json.JsonMapper;
 
 import static org.springframework.http.HttpStatus.BAD_REQUEST;
 import static org.springframework.http.HttpStatus.INTERNAL_SERVER_ERROR;
@@ -40,35 +34,17 @@ import static org.springframework.http.HttpStatus.TOO_MANY_REQUESTS;
 @RestController
 @RequestMapping("/api/v1/manifests")
 public class ManifestPdfController {
-    private final ManifestPdfService generator;
+    private final ManifestGenerationService generationService;
     private final LocalPdfStorage storage;
     private final PdfPasswordGate passwordGate;
     private final PdfDownloadTickets downloadTickets;
-    private final GeneratedPdfManifestRepository generatedManifests;
-    private final JsonMapper jsonMapper;
-    private final String publicBaseUrl;
-    private final ZoneId timezone;
 
-    public ManifestPdfController(ManifestPdfService generator, LocalPdfStorage storage,
-                                 PdfPasswordGate passwordGate, PdfDownloadTickets downloadTickets,
-                                 GeneratedPdfManifestRepository generatedManifests, JsonMapper jsonMapper,
-                                 @Value("${manifest.public-base-url:http://localhost:8080}") String publicBaseUrl,
-                                 @Value("${manifest.access.zone:Asia/Jakarta}") String timezone) {
-        this.generator = generator;
+    public ManifestPdfController(ManifestGenerationService generationService, LocalPdfStorage storage,
+                                 PdfPasswordGate passwordGate, PdfDownloadTickets downloadTickets) {
+        this.generationService = generationService;
         this.storage = storage;
         this.passwordGate = passwordGate;
         this.downloadTickets = downloadTickets;
-        this.generatedManifests = generatedManifests;
-        this.jsonMapper = jsonMapper;
-        this.timezone = ZoneId.of(timezone);
-        String configured = publicBaseUrl.replaceAll("/+$", "");
-        URI base = URI.create(configured);
-        if (base.getHost() == null || base.getRawQuery() != null || base.getRawFragment() != null
-                || !("https".equalsIgnoreCase(base.getScheme())
-                || "http".equalsIgnoreCase(base.getScheme()))) {
-            throw new IllegalArgumentException("manifest.public-base-url harus URL HTTP(S) valid");
-        }
-        this.publicBaseUrl = configured;
     }
 
     /** Unlike the previous release, generation now returns JSON containing a view URL. */
@@ -76,15 +52,9 @@ public class ManifestPdfController {
             produces = MediaType.APPLICATION_JSON_VALUE)
     public ResponseEntity<GeneratedPdfResponse> generatePdf(@Valid @RequestBody ManifestRequest request) {
         try {
-            byte[] pdf = generator.generate(request);
-            String token = storage.save(pdf, PdfPasswordGate.digest(pdfPassword(request.document().cutOffId())));
-            generatedManifests.save(request.document().cutOffId(), jsonMapper.writeValueAsString(request),
-                    request.document().id_pkk());
-            String url = publicBaseUrl + "/api/v1/manifests/files/" + token;
             return ResponseEntity.status(201)
                     .header(HttpHeaders.CACHE_CONTROL, "no-store")
-                    .body(new GeneratedPdfResponse(token, url,
-                            OffsetDateTime.now(timezone).toString(), "DDMMYYYY"));
+                    .body(generationService.generate(request));
         } catch (IllegalArgumentException ex) {
             throw new ResponseStatusException(BAD_REQUEST, "Data manifest tidak valid", ex);
         } catch (IOException ex) {
@@ -163,7 +133,7 @@ public class ManifestPdfController {
      * 20241023143733008048400 becomes 23102024. Later digits are ignored.
      */
     static String pdfPassword(String cutOffId) {
-        return cutOffId.substring(6, 8) + cutOffId.substring(4, 6) + cutOffId.substring(0, 4);
+        return ManifestGenerationService.pdfPassword(cutOffId);
     }
 
     private void ensureExists(String token) {
@@ -216,6 +186,4 @@ public class ManifestPdfController {
                 </main></body></html>
                 """.formatted(errorHtml, token);
     }
-
-    public record GeneratedPdfResponse(String fileId, String url, String createdAt, String passwordFormat) {}
 }

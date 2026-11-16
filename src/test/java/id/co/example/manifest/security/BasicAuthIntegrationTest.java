@@ -6,6 +6,7 @@ import ch.qos.logback.core.read.ListAppender;
 import id.co.example.manifest.repository.DockShip;
 import id.co.example.manifest.repository.DockShipRepository;
 import id.co.example.manifest.repository.GeneratedPdfManifestRepository;
+import id.co.example.manifest.repository.GeneratedPdfManifest;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -20,6 +21,7 @@ import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import java.net.URI;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
+import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
@@ -38,7 +40,6 @@ import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.argThat;
-import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.when;
@@ -122,11 +123,11 @@ class BasicAuthIntegrationTest {
     @Test
     void correctCredentialsReachProtectedEndpoints() {
         assertEquals(201, call(generatePdf(port, basic(ADMIN, PASSWORD))).statusCode());
-        verify(generatedManifests).save(
-                eq("20261029143733008048400"),
-                argThat(payload -> payload.contains("\"manifestId\":\"MNF-20261029-001\"")
-                        && !payload.contains("cutOffIdRealDate")),
-                eq("PKK123213ABC"));
+        verify(generatedManifests).save(argThat(row ->
+                row.getCutOffId().equals("20261029143733008048400")
+                        && row.getPayloadGenerate().contains("\"manifestId\":\"MNF-20261029-001\"")
+                        && !row.getPayloadGenerate().contains("cutOffIdRealDate")
+                        && row.getPkkNumber().equals("PKK123213ABC")));
 
         HttpResponse<String> check = call(get(CHECK_PATH).header("Authorization", basic(ADMIN, PASSWORD)));
         assertEquals(200, check.statusCode());
@@ -137,9 +138,53 @@ class BasicAuthIntegrationTest {
     @Test
     void generateReturns503WhenAuditInsertFails() {
         doThrow(new DataAccessResourceFailureException("down"))
-                .when(generatedManifests).save(any(), any(), any());
+                .when(generatedManifests).save(any());
 
         assertEquals(503, call(generatePdf(port, basic(ADMIN, PASSWORD))).statusCode());
+    }
+
+    @Test
+    void retryUsesLatestPayloadReplacesIdPkkAndReturnsGenerateResponse() throws Exception {
+        String storedPayload;
+        try (var input = getClass().getResourceAsStream("/manifest-request.json")) {
+            storedPayload = new String(input.readAllBytes(), StandardCharsets.UTF_8);
+        }
+        when(generatedManifests.findFirstByCutOffIdOrderByCreateAtDesc("20261029143733008048400"))
+                .thenReturn(Optional.of(new GeneratedPdfManifest(
+                        "20261029143733008048400", storedPayload, "PKK-LAMA")));
+
+        HttpResponse<String> response = call(HttpRequest.newBuilder(uri("/retry_generate_pdf"))
+                .header("Authorization", basic(ADMIN, PASSWORD))
+                .header("Content-Type", "application/json")
+                .POST(HttpRequest.BodyPublishers.ofString("""
+                        {"cut_off_id":"20261029143733008048400","nomorPkk":"PKK-RETRY-001"}
+                        """)));
+
+        assertEquals(201, response.statusCode());
+        assertTrue(response.body().contains("\"fileId\":"));
+        assertTrue(response.body().contains("\"url\":"));
+        assertTrue(response.body().contains("\"createdAt\":"));
+        assertTrue(response.body().contains("\"passwordFormat\":\"DDMMYYYY\""));
+        verify(generatedManifests).save(argThat(row ->
+                row.getCutOffId().equals("20261029143733008048400")
+                        && row.getPayloadGenerate().contains("\"id_pkk\":\"PKK-RETRY-001\"")
+                        && !row.getPayloadGenerate().contains("PKK123213ABC")
+                        && row.getPkkNumber().equals("PKK-RETRY-001")));
+    }
+
+    @Test
+    void retryReturns404WhenCutOffIdHasNoHistory() {
+        when(generatedManifests.findFirstByCutOffIdOrderByCreateAtDesc("20261029143733008048400"))
+                .thenReturn(Optional.empty());
+
+        HttpResponse<String> response = call(HttpRequest.newBuilder(uri("/retry_generate_pdf"))
+                .header("Authorization", basic(ADMIN, PASSWORD))
+                .header("Content-Type", "application/json")
+                .POST(HttpRequest.BodyPublishers.ofString("""
+                        {"cut_off_id":"20261029143733008048400","nomorPkk":"PKK-RETRY-001"}
+                        """)));
+
+        assertEquals(404, response.statusCode());
     }
 
     @Test
@@ -152,6 +197,13 @@ class BasicAuthIntegrationTest {
                 .header("Authorization", basic(CHECK_ONLY, PASSWORD))
                 .POST(HttpRequest.BodyPublishers.noBody()));
         assertEquals(403, reset.statusCode());
+
+        HttpResponse<String> retry = call(HttpRequest.newBuilder(uri("/retry_generate_pdf"))
+                .header("Authorization", basic(CHECK_ONLY, PASSWORD))
+                .header("Content-Type", "application/json")
+                .POST(HttpRequest.BodyPublishers.ofString(
+                        "{\"cut_off_id\":\"20261029143733008048400\",\"nomorPkk\":\"PKK-1\"}")));
+        assertEquals(403, retry.statusCode());
 
         assertEquals(200, call(get(CHECK_PATH).header("Authorization", basic(CHECK_ONLY, PASSWORD))).statusCode());
     }

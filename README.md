@@ -191,6 +191,19 @@ Response HTTP **201** (contoh token berbeda pada setiap request):
 
 Setelah PDF berhasil dibuat dan disimpan, service mencatat request ke tabel `generate_pdf_manifest`: `cut_off_id` diambil dari `document.cutOffId`, `payload_generate` berisi JSON request, dan `pkk_number` diambil dari `document.id_pkk`. Jika insert database gagal, endpoint mengembalikan HTTP **503**.
 
+### Retry generate
+
+**POST** `/retry_generate_pdf`, memakai Basic Auth dengan authority `MANIFEST_GENERATE`.
+
+```json
+{
+  "cut_off_id": "20261029143733008048400",
+  "nomorPkk": "PKK-RETRY-001"
+}
+```
+
+Melalui ORM Spring Data JPA, service mencari satu record terbaru di `generate_pdf_manifest` dengan `cut_off_id` yang sama (derived query `findFirstByCutOffIdOrderByCreateAtDesc`), membaca `payload_generate`, mengganti hanya `document.id_pkk` dengan `nomorPkk`, lalu menjalankan alur generate PDF yang sama. Response sukses HTTP **201** sama persis dengan `/api/v1/manifests/generate-pdf`. Hasil retry juga dicatat sebagai row baru melalui ORM. Jika data tidak ditemukan, response HTTP **404**.
+
 Perintah cURL:
 
 ```bash

@@ -151,6 +151,60 @@ class ManifestCheckControllerTest {
     }
 
     @Test
+    void urlPdfUpdatesManifestDocumentUrlTogetherWithTootlip() throws Exception {
+        List<String> updates = new ArrayList<>();
+        mvc(Optional::empty,
+                (id, value) -> { throw new AssertionError("wrong update method"); },
+                (id, value, nomorPkk) -> { throw new AssertionError("must not update id_pkk"); },
+                (id, value, urlPdf) -> {
+                    updates.add(id + "=" + value + "," + urlPdf);
+                    return 1;
+                },
+                (id, value, nomorPkk, urlPdf) -> { throw new AssertionError("wrong update method"); })
+                .perform(post("/manifestnotapprove")
+                        .param("id", "ABC")
+                        .param("value", "0")
+                        .param("url_pdf", "  https://pdf.example.com/manifest/ABC.pdf  "))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.tootlip").value(0));
+        assertEquals(List.of("ABC=false,https://pdf.example.com/manifest/ABC.pdf"), updates);
+    }
+
+    @Test
+    void nomorPkkAndUrlPdfAreUpdatedTogether() throws Exception {
+        List<String> updates = new ArrayList<>();
+        mvc(Optional::empty,
+                (id, value) -> { throw new AssertionError("wrong update method"); },
+                (id, value, nomorPkk) -> { throw new AssertionError("wrong update method"); },
+                (id, value, urlPdf) -> { throw new AssertionError("wrong update method"); },
+                (id, value, nomorPkk, urlPdf) -> {
+                    updates.add(id + "=" + value + "," + nomorPkk + "," + urlPdf);
+                    return 1;
+                })
+                .perform(post("/manifestnotapprove")
+                        .param("id", "ABC")
+                        .param("nomorPkk", "PKK-123")
+                        .param("url_pdf", "https://pdf.example.com/manifest/ABC.pdf"))
+                .andExpect(status().isOk());
+        assertEquals(List.of("ABC=true,PKK-123,https://pdf.example.com/manifest/ABC.pdf"), updates);
+    }
+
+    @Test
+    void blankUrlPdfDoesNotOverwriteExistingManifestDocumentUrl() throws Exception {
+        List<String> updates = new ArrayList<>();
+        mvc(Optional::empty,
+                (id, value) -> { updates.add(id + "=" + value); return 1; },
+                (id, value, nomorPkk) -> { throw new AssertionError("must not update id_pkk"); },
+                (id, value, urlPdf) -> { throw new AssertionError("must not update URL"); },
+                (id, value, nomorPkk, urlPdf) -> { throw new AssertionError("must not update optional fields"); })
+                .perform(post("/manifestnotapprove")
+                        .param("id", "ABC")
+                        .param("url_pdf", "   "))
+                .andExpect(status().isOk());
+        assertEquals(List.of("ABC=true"), updates);
+    }
+
+    @Test
     void valueOtherThanZeroOrOneIsRejected() throws Exception {
         MockMvc mvc = mvc(Optional::empty, (id, value) -> { throw new AssertionError("must not update"); });
         for (String value : new String[]{"2", "-1", "10", "abc", "1.5"}) {
@@ -194,6 +248,13 @@ class ManifestCheckControllerTest {
 
     private static MockMvc mvc(Supplier<Optional<DockShip>> result, ToIntBiFunction<String, Boolean> update,
                                PkkUpdate updateWithPkk) {
+        return mvc(result, update, updateWithPkk,
+                (id, value, urlPdf) -> { throw new AssertionError("must not update URL"); },
+                (id, value, nomorPkk, urlPdf) -> { throw new AssertionError("must not update URL"); });
+    }
+
+    private static MockMvc mvc(Supplier<Optional<DockShip>> result, ToIntBiFunction<String, Boolean> update,
+                               PkkUpdate updateWithPkk, UrlUpdate updateWithUrl, FullUpdate updateWithBoth) {
         DockShipRepository repository = new DockShipRepository() {
             @Override
             public Optional<DockShip> findByIdAndBranchIdAndHarborIdAndRouteId(
@@ -210,6 +271,17 @@ class ManifestCheckControllerTest {
             public int updateTootlipAndIdPkk(String id, boolean value, String nomorPkk) {
                 return updateWithPkk.apply(id, value, nomorPkk);
             }
+
+            @Override
+            public int updateTootlipAndManifestDocumentUrl(String id, boolean value, String urlPdf) {
+                return updateWithUrl.apply(id, value, urlPdf);
+            }
+
+            @Override
+            public int updateTootlipAndIdPkkAndManifestDocumentUrl(
+                    String id, boolean value, String nomorPkk, String urlPdf) {
+                return updateWithBoth.apply(id, value, nomorPkk, urlPdf);
+            }
         };
         return MockMvcBuilders.standaloneSetup(new ManifestCheckController(repository)).build();
     }
@@ -217,5 +289,15 @@ class ManifestCheckControllerTest {
     @FunctionalInterface
     private interface PkkUpdate {
         int apply(String id, boolean value, String nomorPkk);
+    }
+
+    @FunctionalInterface
+    private interface UrlUpdate {
+        int apply(String id, boolean value, String urlPdf);
+    }
+
+    @FunctionalInterface
+    private interface FullUpdate {
+        int apply(String id, boolean value, String nomorPkk, String urlPdf);
     }
 }

@@ -50,26 +50,40 @@ public class ManifestCheckController {
 
     /**
      * Sets dock_ship.tootlip to {@code value} (0 or 1, default 1) for the given id. When nomorPkk is
-     * present and non-blank, dock_ship.id_pkk is updated in the same statement; approve_manifest is not touched.
+     * present and non-blank, dock_ship.id_pkk is updated in the same statement. When url_pdf is present
+     * and non-blank, dock_ship.manifest_document_url is updated too; approve_manifest is not touched.
      * "manitfestnotapprove" is the requested path; "manifestnotapprove" is its correctly spelled alias.
      */
     @PostMapping(value = {"/manitfestnotapprove", "/manifestnotapprove"}, produces = MediaType.APPLICATION_JSON_VALUE)
     public ResponseEntity<TootlipUpdateResponse> updateTootlip(
             @RequestParam("id") @NotBlank @Size(max = 100) String id,
             @RequestParam(value = "value", defaultValue = "1") int value,
-            @RequestParam(value = "nomorPkk", required = false) String nomorPkk) {
+            @RequestParam(value = "nomorPkk", required = false) String nomorPkk,
+            @RequestParam(value = "url_pdf", required = false) String urlPdf) {
         // Checked here rather than with @Min/@Max so the rule holds however the controller is set up.
         if (value != 0 && value != 1) {
             throw new ResponseStatusException(BAD_REQUEST, "value harus 0 atau 1");
         }
         String normalizedNomorPkk = nomorPkk == null ? null : nomorPkk.trim();
+        String normalizedUrlPdf = urlPdf == null ? null : urlPdf.trim();
         if (normalizedNomorPkk != null && normalizedNomorPkk.length() > 80) {
             throw new ResponseStatusException(BAD_REQUEST, "nomorPkk maksimal 80 karakter");
         }
         try {
-            boolean updated = (normalizedNomorPkk == null || normalizedNomorPkk.isEmpty()
-                    ? dockShips.updateTootlip(id, value == 1)
-                    : dockShips.updateTootlipAndIdPkk(id, value == 1, normalizedNomorPkk)) > 0;
+            boolean hasNomorPkk = normalizedNomorPkk != null && !normalizedNomorPkk.isEmpty();
+            boolean hasUrlPdf = normalizedUrlPdf != null && !normalizedUrlPdf.isEmpty();
+            int updateCount;
+            if (hasNomorPkk && hasUrlPdf) {
+                updateCount = dockShips.updateTootlipAndIdPkkAndManifestDocumentUrl(
+                        id, value == 1, normalizedNomorPkk, normalizedUrlPdf);
+            } else if (hasNomorPkk) {
+                updateCount = dockShips.updateTootlipAndIdPkk(id, value == 1, normalizedNomorPkk);
+            } else if (hasUrlPdf) {
+                updateCount = dockShips.updateTootlipAndManifestDocumentUrl(id, value == 1, normalizedUrlPdf);
+            } else {
+                updateCount = dockShips.updateTootlip(id, value == 1);
+            }
+            boolean updated = updateCount > 0;
             return ResponseEntity.status(updated ? OK : NOT_FOUND)
                     .header(HttpHeaders.CACHE_CONTROL, "no-store")
                     .body(new TootlipUpdateResponse(id, updated, updated ? value : null));

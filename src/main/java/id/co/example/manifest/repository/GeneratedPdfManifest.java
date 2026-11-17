@@ -26,8 +26,8 @@ public class GeneratedPdfManifest {
     @Column(name = "pkk_number")
     private String pkkNumber;
 
-    @Column(name = "create_at", insertable = false, updatable = false)
-    private LocalDateTime createAt;
+    @Column(name = "created_at", insertable = false, updatable = false)
+    private LocalDateTime createdAt;
 
     protected GeneratedPdfManifest() {}
 
@@ -41,5 +41,5 @@ public class GeneratedPdfManifest {
     public String getCutOffId() { return cutOffId; }
     public String getPayloadGenerate() { return payloadGenerate; }
     public String getPkkNumber() { return pkkNumber; }
-    public LocalDateTime getCreateAt() { return createAt; }
+    public LocalDateTime getCreatedAt() { return createdAt; }
 }

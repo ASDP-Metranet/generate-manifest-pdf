@@ -47,7 +47,7 @@ public class RetryGenerateController {
     public ResponseEntity<GeneratedPdfResponse> retry(@Valid @RequestBody RetryGenerateRequest request) {
         try {
             GeneratedPdfManifest previous = generatedManifests
-                    .findFirstByCutOffIdOrderByCreateAtDesc(request.cut_off_id())
+                    .findFirstByCutOffIdOrderByCreatedAtDesc(request.cut_off_id())
                     .orElseThrow(() -> new ResponseStatusException(NOT_FOUND,
                             "Data generate manifest tidak ditemukan"));
             ManifestRequest manifest = jsonMapper.readValue(previous.getPayloadGenerate(), ManifestRequest.class)

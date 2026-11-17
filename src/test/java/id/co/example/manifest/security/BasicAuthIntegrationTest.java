@@ -149,7 +149,7 @@ class BasicAuthIntegrationTest {
         try (var input = getClass().getResourceAsStream("/manifest-request.json")) {
             storedPayload = new String(input.readAllBytes(), StandardCharsets.UTF_8);
         }
-        when(generatedManifests.findFirstByCutOffIdOrderByCreateAtDesc("20261029143733008048400"))
+        when(generatedManifests.findFirstByCutOffIdOrderByCreatedAtDesc("20261029143733008048400"))
                 .thenReturn(Optional.of(new GeneratedPdfManifest(
                         "20261029143733008048400", storedPayload, "PKK-LAMA")));
 
@@ -174,7 +174,7 @@ class BasicAuthIntegrationTest {
 
     @Test
     void retryReturns404WhenCutOffIdHasNoHistory() {
-        when(generatedManifests.findFirstByCutOffIdOrderByCreateAtDesc("20261029143733008048400"))
+        when(generatedManifests.findFirstByCutOffIdOrderByCreatedAtDesc("20261029143733008048400"))
                 .thenReturn(Optional.empty());
 
         HttpResponse<String> response = call(HttpRequest.newBuilder(uri("/retry_generate_pdf"))

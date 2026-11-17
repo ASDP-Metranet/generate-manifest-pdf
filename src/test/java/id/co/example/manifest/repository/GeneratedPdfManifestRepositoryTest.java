@@ -16,8 +16,8 @@ class GeneratedPdfManifestRepositoryTest {
     }
 
     @Test
-    void exposesDerivedOrmQueryForNewestCreateAt() throws Exception {
+    void exposesDerivedOrmQueryForNewestCreatedAt() throws Exception {
         assertNotNull(GeneratedPdfManifestRepository.class.getMethod(
-                "findFirstByCutOffIdOrderByCreateAtDesc", String.class));
+                "findFirstByCutOffIdOrderByCreatedAtDesc", String.class));
     }
 }

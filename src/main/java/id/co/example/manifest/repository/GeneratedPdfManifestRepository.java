@@ -8,5 +8,5 @@ import java.util.Optional;
 public interface GeneratedPdfManifestRepository extends Repository<GeneratedPdfManifest, Long> {
     GeneratedPdfManifest save(GeneratedPdfManifest manifest);
 
-    Optional<GeneratedPdfManifest> findFirstByCutOffIdOrderByCreateAtDesc(String cutOffId);
+    Optional<GeneratedPdfManifest> findFirstByCutOffIdOrderByCreatedAtDesc(String cutOffId);
 }

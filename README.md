@@ -202,7 +202,7 @@ Setelah PDF berhasil dibuat dan disimpan, service mencatat request ke tabel `gen
 }
 ```
 
-Melalui ORM Spring Data JPA, service mencari satu record terbaru di `generate_pdf_manifest` dengan `cut_off_id` yang sama (derived query `findFirstByCutOffIdOrderByCreateAtDesc`), membaca `payload_generate`, mengganti hanya `document.id_pkk` dengan `nomorPkk`, lalu menjalankan alur generate PDF yang sama. Response sukses HTTP **201** sama persis dengan `/api/v1/manifests/generate-pdf`. Hasil retry juga dicatat sebagai row baru melalui ORM. Jika data tidak ditemukan, response HTTP **404**.
+Melalui ORM Spring Data JPA, service mencari satu record terbaru di `generate_pdf_manifest` dengan `cut_off_id` yang sama (derived query `findFirstByCutOffIdOrderByCreatedAtDesc`, dipetakan ke kolom `created_at`), membaca `payload_generate`, mengganti hanya `document.id_pkk` dengan `nomorPkk`, lalu menjalankan alur generate PDF yang sama. Response sukses HTTP **201** sama persis dengan `/api/v1/manifests/generate-pdf`. Hasil retry juga dicatat sebagai row baru melalui ORM. Jika data tidak ditemukan, response HTTP **404**.
 
 Perintah cURL:
 

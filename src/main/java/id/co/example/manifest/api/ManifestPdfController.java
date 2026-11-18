@@ -173,7 +173,7 @@ public class ManifestPdfController {
                 small{display:block;margin-top:18px;color:#68778a;line-height:1.5}
                 </style></head><body><main class="card">
                 <h1>Manifest Penumpang Kendaraan</h1>
-                <p>Dokumen ini dilindungi password. Masukkan tanggal hari ini dengan format
+                <p>Dokumen ini dilindungi password. Masukkan tanggal keberangkatan dengan format
                 <b>DDMMYYYY</b> (contoh: 25122026)</p>
                 %s
                 <form method="POST" action="/api/v1/manifests/files/%s/unlock">

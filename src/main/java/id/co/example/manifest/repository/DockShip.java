@@ -108,14 +108,6 @@ public class DockShip {
     @JsonProperty("id_pkk")
     private String idPkk;
 
-    @Column(name = "manifest_id")
-    @JsonProperty("manifest_id")
-    private String manifestId;
-
-    @Column(name = "id_boarding")
-    @JsonProperty("id_boarding")
-    private String idBoarding;
-
     @Column(name = "approved_by_operator")
     @JsonProperty("approved_by_operator")
     private String approvedByOperator;
@@ -162,8 +154,6 @@ public class DockShip {
     public Boolean getApproveManifest() { return approveManifest; }
     public Boolean getTootlip() { return tootlip; }
     public String getIdPkk() { return idPkk; }
-    public String getManifestId() { return manifestId; }
-    public String getIdBoarding() { return idBoarding; }
     public String getApprovedByOperator() { return approvedByOperator; }
     public LocalDateTime getManifestApprovedAt() { return manifestApprovedAt; }
     public String getManifestDocumentUrl() { return manifestDocumentUrl; }

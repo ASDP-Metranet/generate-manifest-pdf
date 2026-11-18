@@ -44,10 +44,12 @@ class ManifestCheckControllerTest {
         var result = mvc(() -> Optional.of(ROW))
                 .perform(get("/checkmanifets" + QUERY))
                 .andExpect(status().isOk());
-        for (String column : new String[]{"tootlip", "id_pkk", "manifest_id", "id_boarding",
-                "approved_by_operator", "manifest_approved_at", "manifest_document_url"}) {
+        for (String column : new String[]{"tootlip", "id_pkk", "approved_by_operator",
+                "manifest_approved_at", "manifest_document_url"}) {
             result.andExpect(jsonPath("$.data." + column).hasJsonPath());
         }
+        result.andExpect(jsonPath("$.data.manifest_id").doesNotExist())
+                .andExpect(jsonPath("$.data.id_boarding").doesNotExist());
         result.andExpect(jsonPath("$.data.manifestDocumentUrl").doesNotExist());
     }
 

@@ -74,7 +74,7 @@ class ManifestPdfServiceTest {
         assertTrue(text.contains("Laki-laki : 4 orang"));
         assertTrue(text.contains("Perempuan : 1 orang"));
         assertTrue(text.contains("Penumpang Anak"));
-        assertTrue(text.contains("Golongan IV - Penumpang"));
+        assertTrue(text.contains("IV - PENUMPANG"));
         assertTrue(text.contains("PNP : 4"));
     }
 
@@ -83,9 +83,19 @@ class ManifestPdfServiceTest {
         VehicleData vehicle = new VehicleData("N1234QA", "IV - PENUMPANG",
                 List.of(passenger("PENGEMUDI", "L", null)));
         String text = text(service.generate(request(document("PKK123213ABC"), List.of(vehicle), List.of(), List.of())));
-        assertTrue(text.contains("GOLONGAN IV -"));
+        assertTrue(text.contains("IV - PENUMPANG"));
         assertTrue(text.contains("Penumpang Dewasa"));
         assertTrue(text.contains("Laki-laki : 1 orang"));
+    }
+
+    @Test
+    void preservesRawPassengerClassWithoutConversion() throws Exception {
+        VehicleData vehicle = new VehicleData("N1234QA", "Dewasa Ekonomi",
+                List.of(passenger("SITI", "P", "PENUMPANG DEWASA")));
+        String text = text(service.generate(request(document("PKK123213ABC"), List.of(vehicle), List.of(), List.of())));
+
+        assertTrue(text.contains("Dewasa Ekonomi"));
+        assertFalse(text.contains("GOLONGAN DEWASA EKONOMI"));
     }
 
     @Test

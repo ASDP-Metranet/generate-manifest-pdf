@@ -176,7 +176,7 @@ Aturan field:
 - `document.dermaga`, `document.waktuTiba`, dan `document.waktuBerangkat` opsional dan hanya tampil pada rekap.
 - `document.id_pkk` opsional. Jika field tidak dikirim, bernilai `null`, atau berupa string kosong, PDF tetap dibuat tetapi tanpa QR Code.
 
-Angka pada rekap dihitung oleh server dari data request. Jumlah Hewan dan Curah adalah total `cargo[].qty`, dan Jumlah Penumpang adalah pejalan kaki ditambah penumpang dalam kendaraan.
+Angka pada rekap dihitung oleh server dari data request. Jumlah Hewan dan Curah adalah total `cargo[].qty`, dan Jumlah Penumpang adalah pejalan kaki ditambah penumpang dalam kendaraan. Kotak PENUMPANG di rekap (rincian per kategori dan Laki-laki/Perempuan) hanya menghitung penumpang di `vehicles[].passengers`, dan hanya yang `kategori`-nya mengandung kata **DEWASA** atau **BAYI** (misalnya `PENUMPANG DEWASA`, `PENUMPANG BAYI`). `kategori` kosong dihitung sebagai Dewasa. Pejalan kaki dan kategori lain (misalnya `PENUMPANG ANAK`, `PENUMPANG LANSIA`) tidak tampil di kotak itu, tetapi tetap tercantum di tabel dan dihitung di baris Jumlah.
 
 Response HTTP **201** (contoh token berbeda pada setiap request):
 

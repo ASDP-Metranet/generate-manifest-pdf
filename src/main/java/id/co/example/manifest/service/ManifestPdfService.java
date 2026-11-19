@@ -26,6 +26,7 @@ import java.io.IOException;
 import java.text.Normalizer;
 import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
@@ -185,15 +186,22 @@ public class ManifestPdfService {
             inVehicles += v.passengers().size();
             v.passengers().forEach(p -> countPassenger(passengers, p));
         }
-        request.pedestrians().forEach(p -> countPassenger(passengers, p));
+        // The PENUMPANG card counts only passengers in vehicles; pedestrians appear in "Jumlah Pejalan Kaki".
         long cargoTotal = request.cargo().stream().mapToLong(CargoData::qty).sum();
         return new Recap(passengers, vehicles, request.pedestrians().size(), inVehicles,
                 request.vehicles().size(), cargoTotal);
     }
 
-    /** Passengers without kategori, such as a driver listed under the vehicle class, count as adults. */
+    /**
+     * The PENUMPANG card lists adults and infants only: a kategori containing the word DEWASA or BAYI.
+     * Passengers without kategori, such as a driver listed under the vehicle class, count as adults.
+     * Other categories (e.g. ANAK, LANSIA) still appear in the table and in "Jumlah ..." but not in the card.
+     */
     private void countPassenger(Map<String, Map<String, Integer>> passengers, PassengerData p) {
         String category = isBlank(p.kategori()) ? DEFAULT_CATEGORY : upper(p.kategori());
+        if (!category.matches(".*\\b(DEWASA|BAYI)\\b.*")) {
+            return;
+        }
         passengers.computeIfAbsent(category, unused -> new TreeMap<>())
                 .merge(genderLabel(p.jenisKelamin()), 1, Integer::sum);
     }
@@ -281,7 +289,10 @@ public class ManifestPdfService {
         List<DetailLine> lines = new ArrayList<>();
         lines.add(new DetailLine(38.2f, "PENUMPANG"));
         float maxWidth = SPLIT - 38.2f - CELL_PAD;
-        for (Map.Entry<String, Map<String, Integer>> category : recap.passengers().entrySet()) {
+        // Adults first, then infants; within each, categories keep the order they first appear in.
+        List<Map.Entry<String, Map<String, Integer>>> categories = new ArrayList<>(recap.passengers().entrySet());
+        categories.sort(Comparator.comparingInt(category -> category.getKey().matches(".*\\bDEWASA\\b.*") ? 0 : 1));
+        for (Map.Entry<String, Map<String, Integer>> category : categories) {
             for (String line : wrap(titleCase(category.getKey()), NORMAL, FONT_SIZE, maxWidth)) {
                 lines.add(new DetailLine(38.2f, line));
             }

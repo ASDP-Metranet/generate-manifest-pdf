@@ -70,10 +70,11 @@ class ManifestPdfServiceTest {
         assertTrue(text.contains("Jumlah Penumpang Dalam Kendaraan : 4"));
         assertTrue(text.contains("Jumlah Hewan dan Curah : 5"));
         assertTrue(text.contains("Jumlah Penumpang : 6"));
+        // The PENUMPANG card counts only the 4 passengers in vehicles, not the 2 pedestrians.
         assertTrue(text.contains("Penumpang Dewasa"));
         assertTrue(text.contains("Laki-laki : 4 orang"));
-        assertTrue(text.contains("Perempuan : 1 orang"));
-        assertTrue(text.contains("Penumpang Anak"));
+        assertFalse(text.contains("Perempuan : 1 orang"));
+        assertFalse(text.contains("Penumpang Anak"));
         assertTrue(text.contains("Golongan IV - Penumpang"));
         assertTrue(text.contains("PNP : 4"));
     }
@@ -86,6 +87,40 @@ class ManifestPdfServiceTest {
         assertTrue(text.contains("GOLONGAN IV -"));
         assertTrue(text.contains("Penumpang Dewasa"));
         assertTrue(text.contains("Laki-laki : 1 orang"));
+    }
+
+    @Test
+    void penumpangCardListsOnlyAdultsAndInfants() throws Exception {
+        VehicleData vehicle = new VehicleData("N1234QA", "IV - PENUMPANG", List.of(
+                passenger("AYAH", "L", "PENUMPANG DEWASA"),
+                passenger("ADIK BAYI", "P", "PENUMPANG BAYI"),
+                passenger("KAKAK", "L", "PENUMPANG ANAK"),
+                passenger("NENEK", "P", "PENUMPANG LANSIA")));
+        String text = text(service.generate(request(document("PKK123213ABC"), List.of(vehicle), List.of(), List.of())));
+
+        // Card titles are title case ("Penumpang Anak"); the table's Golongan column stays upper case.
+        assertTrue(text.contains("Penumpang Dewasa"));
+        assertTrue(text.contains("Penumpang Bayi"));
+        assertFalse(text.contains("Penumpang Anak"));
+        assertFalse(text.contains("Penumpang Lansia"));
+        assertTrue(text.contains("Laki-laki : 1 orang"));
+        assertTrue(text.contains("Perempuan : 1 orang"));
+        // Everyone is still listed in the table and counted in the totals.
+        assertTrue(text.contains("KAKAK") && text.contains("NENEK"));
+        assertTrue(text.contains("Jumlah Penumpang Dalam Kendaraan : 4"));
+    }
+
+    @Test
+    void penumpangCardShowsAdultsBeforeInfantsWhateverTheInputOrder() throws Exception {
+        VehicleData vehicle = new VehicleData("N1234QA", "IV - PENUMPANG", List.of(
+                passenger("ADIK BAYI", "P", "PENUMPANG BAYI"),
+                passenger("AYAH", "L", "PENUMPANG DEWASA")));
+        String text = text(service.generate(request(document("PKK123213ABC"), List.of(vehicle), List.of(), List.of())));
+
+        int adults = text.indexOf("Penumpang Dewasa");
+        int infants = text.indexOf("Penumpang Bayi");
+        assertTrue(adults >= 0 && infants >= 0);
+        assertTrue(adults < infants, "Penumpang Dewasa harus tampil sebelum Penumpang Bayi");
     }
 
     @Test

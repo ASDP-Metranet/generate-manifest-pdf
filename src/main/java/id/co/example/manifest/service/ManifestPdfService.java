@@ -128,7 +128,7 @@ public class ManifestPdfService {
         for (VehicleData v : vehicles) {
             for (PassengerData p : v.passengers()) {
                 number++;
-                String golongan = isBlank(p.kategori()) ? golonganLabel(v.golongan()) : upper(p.kategori());
+                String golongan = oneLine(v.golongan());
                 rows.add(row(VEHICLE_TABLE, String.valueOf(number), safe(p.nama()), upper(p.jenisKelamin()),
                         String.valueOf(p.usia()), safe(p.alamatDomisili()), safe(p.nomorIdentitas()),
                         upper(v.nomorKendaraan()), golongan, "1"));
@@ -180,7 +180,7 @@ public class ManifestPdfService {
         Map<String, int[]> vehicles = new LinkedHashMap<>();
         int inVehicles = 0;
         for (VehicleData v : request.vehicles()) {
-            int[] counts = vehicles.computeIfAbsent(golonganLabel(v.golongan()), unused -> new int[2]);
+            int[] counts = vehicles.computeIfAbsent(oneLine(v.golongan()), unused -> new int[2]);
             counts[0]++;
             counts[1] += v.passengers().size();
             inVehicles += v.passengers().size();
@@ -307,7 +307,7 @@ public class ManifestPdfService {
         List<DetailLine> lines = new ArrayList<>();
         lines.add(new DetailLine(270.2f, "KENDARAAN"));
         for (Map.Entry<String, int[]> golongan : recap.vehicles().entrySet()) {
-            List<String> label = wrap(titleCase(golongan.getKey()), NORMAL, FONT_SIZE, 467.5f - 277f - 2f);
+            List<String> label = wrap(golongan.getKey(), NORMAL, FONT_SIZE, 467.5f - 277f - 2f);
             for (int n = 0; n < label.size(); n++) {
                 if (n == 0) {
                     int[] counts = golongan.getValue();
@@ -404,11 +404,6 @@ public class ManifestPdfService {
 
     private static float headHeight(Table table) {
         return TITLE_H + 2 * ROW_H + table.headerHeight();
-    }
-
-    private String golonganLabel(String golongan) {
-        String label = upper(golongan);
-        return label.startsWith("GOLONGAN") ? label : "GOLONGAN " + label;
     }
 
     private String genderLabel(String gender) {

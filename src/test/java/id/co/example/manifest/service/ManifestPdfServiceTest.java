@@ -75,7 +75,7 @@ class ManifestPdfServiceTest {
         assertTrue(text.contains("Laki-laki : 4 orang"));
         assertFalse(text.contains("Perempuan : 1 orang"));
         assertFalse(text.contains("Penumpang Anak"));
-        assertTrue(text.contains("Golongan IV - Penumpang"));
+        assertTrue(text.contains("IV - PENUMPANG"));
         assertTrue(text.contains("PNP : 4"));
     }
 
@@ -84,7 +84,7 @@ class ManifestPdfServiceTest {
         VehicleData vehicle = new VehicleData("N1234QA", "IV - PENUMPANG",
                 List.of(passenger("PENGEMUDI", "L", null)));
         String text = text(service.generate(request(document("PKK123213ABC"), List.of(vehicle), List.of(), List.of())));
-        assertTrue(text.contains("GOLONGAN IV -"));
+        assertTrue(text.contains("IV - PENUMPANG"));
         assertTrue(text.contains("Penumpang Dewasa"));
         assertTrue(text.contains("Laki-laki : 1 orang"));
     }
@@ -98,7 +98,7 @@ class ManifestPdfServiceTest {
                 passenger("NENEK", "P", "PENUMPANG LANSIA")));
         String text = text(service.generate(request(document("PKK123213ABC"), List.of(vehicle), List.of(), List.of())));
 
-        // Card titles are title case ("Penumpang Anak"); the table's Golongan column stays upper case.
+        // Card titles are title case ("Penumpang Anak"); the table's Golongan column shows the vehicle class as sent.
         assertTrue(text.contains("Penumpang Dewasa"));
         assertTrue(text.contains("Penumpang Bayi"));
         assertFalse(text.contains("Penumpang Anak"));
@@ -121,6 +121,16 @@ class ManifestPdfServiceTest {
         int infants = text.indexOf("Penumpang Bayi");
         assertTrue(adults >= 0 && infants >= 0);
         assertTrue(adults < infants, "Penumpang Dewasa harus tampil sebelum Penumpang Bayi");
+    }
+
+    @Test
+    void preservesRawPassengerClassWithoutConversion() throws Exception {
+        VehicleData vehicle = new VehicleData("N1234QA", "Dewasa Ekonomi",
+                List.of(passenger("SITI", "P", "PENUMPANG DEWASA")));
+        String text = text(service.generate(request(document("PKK123213ABC"), List.of(vehicle), List.of(), List.of())));
+
+        assertTrue(text.contains("Dewasa Ekonomi"));
+        assertFalse(text.contains("GOLONGAN DEWASA EKONOMI"));
     }
 
     @Test

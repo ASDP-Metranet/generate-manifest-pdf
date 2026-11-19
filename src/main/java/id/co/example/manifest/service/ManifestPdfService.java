@@ -26,7 +26,7 @@ import java.io.IOException;
 import java.text.Normalizer;
 import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
-import java.util.Comparator;
+import java.util.EnumMap;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
@@ -64,7 +64,6 @@ public class ManifestPdfService {
     private static final PDFont BOLD = new PDType1Font(Standard14Fonts.FontName.TIMES_BOLD);
     private static final DateTimeFormatter DOCUMENT_DATE = DateTimeFormatter.ofPattern("d MMM uuuu", Locale.ENGLISH);
     private static final DateTimeFormatter QR_TIMESTAMP = DateTimeFormatter.ofPattern("uuuu/MM/dd HH:mm:ss");
-    private static final String DEFAULT_CATEGORY = "PENUMPANG DEWASA";
 
     private static final Table VEHICLE_TABLE = new Table("DAFTAR PENUMPANG PADA KENDARAAN",
             new float[]{LEFT, 55.1f, 148.1f, 166.1f, 190.9f, 286.1f, 384.4f, 436.9f, 533.6f, RIGHT},
@@ -176,7 +175,7 @@ public class ManifestPdfService {
     }
 
     private Recap buildRecap(ManifestRequest request) {
-        Map<String, Map<String, Integer>> passengers = new LinkedHashMap<>();
+        Map<CardGroup, Map<String, Integer>> passengers = new EnumMap<>(CardGroup.class);
         Map<String, int[]> vehicles = new LinkedHashMap<>();
         int inVehicles = 0;
         for (VehicleData v : request.vehicles()) {
@@ -184,7 +183,7 @@ public class ManifestPdfService {
             counts[0]++;
             counts[1] += v.passengers().size();
             inVehicles += v.passengers().size();
-            v.passengers().forEach(p -> countPassenger(passengers, p));
+            v.passengers().forEach(p -> countPassenger(passengers, p, v));
         }
         // The PENUMPANG card counts only passengers in vehicles; pedestrians appear in "Jumlah Pejalan Kaki".
         long cargoTotal = request.cargo().stream().mapToLong(CargoData::qty).sum();
@@ -192,18 +191,51 @@ public class ManifestPdfService {
                 request.vehicles().size(), cargoTotal);
     }
 
-    /**
-     * The PENUMPANG card lists adults and infants only: a kategori containing the word DEWASA or BAYI.
-     * Passengers without kategori, such as a driver listed under the vehicle class, count as adults.
-     * Other categories (e.g. ANAK, LANSIA) still appear in the table and in "Jumlah ..." but not in the card.
-     */
-    private void countPassenger(Map<String, Map<String, Integer>> passengers, PassengerData p) {
-        String category = isBlank(p.kategori()) ? DEFAULT_CATEGORY : upper(p.kategori());
-        if (!category.matches(".*\\b(DEWASA|BAYI)\\b.*")) {
-            return;
+    private void countPassenger(Map<CardGroup, Map<String, Integer>> passengers, PassengerData p, VehicleData v) {
+        CardGroup group = cardGroup(p.kategori(), v.golongan());
+        if (group != null) {
+            passengers.computeIfAbsent(group, unused -> new TreeMap<>())
+                    .merge(genderLabel(p.jenisKelamin()), 1, Integer::sum);
         }
-        passengers.computeIfAbsent(category, unused -> new TreeMap<>())
-                .merge(genderLabel(p.jenisKelamin()), 1, Integer::sum);
+    }
+
+    /**
+     * Sorts a vehicle passenger into the PENUMPANG card by keyword, whatever the exact wording of kategori
+     * ("Dewasa Ekonomi", "PENUMPANG DEWASA", ...). A driver sent with the vehicle class as kategori
+     * ("Golongan IV - Penumpang") or without kategori counts as an adult. Children (ANAK) and seniors (LANSIA)
+     * are not in the card, nor is any kategori that matches no rule; all of them still appear in the
+     * table and in the "Jumlah ..." totals.
+     */
+    static CardGroup cardGroup(String kategori, String vehicleGolongan) {
+        String k = kategori == null ? "" : kategori.trim().toUpperCase(Locale.ROOT);
+        if (k.isEmpty()) {
+            return CardGroup.DEWASA;
+        }
+        if (k.matches(".*\\bBAYI\\b.*")) {
+            return CardGroup.BAYI;
+        }
+        if (k.matches(".*\\b(ANAK|LANSIA)\\b.*")) {
+            return null;
+        }
+        if (k.matches(".*\\bDEWASA\\b.*")) {
+            return CardGroup.DEWASA;
+        }
+        String golongan = vehicleGolongan == null ? "" : vehicleGolongan.trim().toUpperCase(Locale.ROOT);
+        boolean isVehicleClass = k.matches(".*\\bGOLONGAN\\b.*") || (!golongan.isEmpty()
+                && (k.equals(golongan) || k.equals("GOLONGAN " + golongan)));
+        return isVehicleClass ? CardGroup.DEWASA : null;
+    }
+
+    /** Rows of the PENUMPANG card, in display order. */
+    enum CardGroup {
+        DEWASA("Penumpang Dewasa"),
+        BAYI("Penumpang Bayi");
+
+        final String label;
+
+        CardGroup(String label) {
+            this.label = label;
+        }
     }
 
     private void drawTable(Sheet sheet, DocumentData document, Table table, List<Row> rows) throws IOException {
@@ -289,11 +321,9 @@ public class ManifestPdfService {
         List<DetailLine> lines = new ArrayList<>();
         lines.add(new DetailLine(38.2f, "PENUMPANG"));
         float maxWidth = SPLIT - 38.2f - CELL_PAD;
-        // Adults first, then infants; within each, categories keep the order they first appear in.
-        List<Map.Entry<String, Map<String, Integer>>> categories = new ArrayList<>(recap.passengers().entrySet());
-        categories.sort(Comparator.comparingInt(category -> category.getKey().matches(".*\\bDEWASA\\b.*") ? 0 : 1));
-        for (Map.Entry<String, Map<String, Integer>> category : categories) {
-            for (String line : wrap(titleCase(category.getKey()), NORMAL, FONT_SIZE, maxWidth)) {
+        // EnumMap iterates in CardGroup order: Penumpang Dewasa first, then Penumpang Bayi.
+        for (Map.Entry<CardGroup, Map<String, Integer>> category : recap.passengers().entrySet()) {
+            for (String line : wrap(category.getKey().label, NORMAL, FONT_SIZE, maxWidth)) {
                 lines.add(new DetailLine(38.2f, line));
             }
             for (Map.Entry<String, Integer> gender : category.getValue().entrySet()) {
@@ -536,7 +566,7 @@ public class ManifestPdfService {
             this(x, label, null, null);
         }
     }
-    private record Recap(Map<String, Map<String, Integer>> passengers, Map<String, int[]> vehicles,
+    private record Recap(Map<CardGroup, Map<String, Integer>> passengers, Map<String, int[]> vehicles,
                          int pedestrians, int inVehicles, int vehicleCount, long cargoTotal) {}
 
     /** Current page and vertical position, measured from the top of the page. */

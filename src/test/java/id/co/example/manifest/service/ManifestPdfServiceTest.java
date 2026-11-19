@@ -124,6 +124,49 @@ class ManifestPdfServiceTest {
     }
 
     @Test
+    void cardGroupIgnoresWordingAndCountsDriversAsAdults() {
+        assertEquals(ManifestPdfService.CardGroup.DEWASA, ManifestPdfService.cardGroup("Dewasa Ekonomi", "IV - Penumpang"));
+        assertEquals(ManifestPdfService.CardGroup.DEWASA, ManifestPdfService.cardGroup("PENUMPANG DEWASA", "IV - Penumpang"));
+        assertEquals(ManifestPdfService.CardGroup.DEWASA, ManifestPdfService.cardGroup(null, "IV - Penumpang"));
+        // Driver sent with the vehicle class as kategori, with or without the word "Golongan".
+        assertEquals(ManifestPdfService.CardGroup.DEWASA, ManifestPdfService.cardGroup("Golongan IV - Penumpang", "IV - Penumpang"));
+        assertEquals(ManifestPdfService.CardGroup.DEWASA, ManifestPdfService.cardGroup("IV - Penumpang", "IV - Penumpang"));
+        assertEquals(ManifestPdfService.CardGroup.BAYI, ManifestPdfService.cardGroup("Bayi Ekonomi", "IV - Penumpang"));
+        assertEquals(ManifestPdfService.CardGroup.BAYI, ManifestPdfService.cardGroup("PENUMPANG BAYI", "IV - Penumpang"));
+        assertNull(ManifestPdfService.cardGroup("Anak - Anak Ekonomi", "VI - Penumpang"));
+        assertNull(ManifestPdfService.cardGroup("PENUMPANG LANSIA", "IV - Penumpang"));
+        assertNull(ManifestPdfService.cardGroup("VIP", "IV - Penumpang"));
+    }
+
+    @Test
+    void penumpangCardMatchesTheIhanBatakManifest() throws Exception {
+        // Vehicle passengers from the KMP.IHAN BATAK test manifest (2026-11-19).
+        List<VehicleData> vehicles = List.of(
+                new VehicleData("DT 9001 TA", "IV - Penumpang", List.of(
+                        passenger("TEST DRIVER G4 L 35", "L", "Golongan IV - Penumpang"),
+                        passenger("TEST PNP G4 P 30", "P", "Dewasa Ekonomi"))),
+                new VehicleData("DT 9002 TA", "V - Penumpang", List.of(
+                        passenger("TEST DRIVER G5 L 40", "L", "Golongan V - Penumpang"))),
+                new VehicleData("DT 9003 TA", "VI - Penumpang", List.of(
+                        passenger("TEST DRIVER G6 P 33", "P", "Golongan VI - Penumpang"),
+                        passenger("TEST PNP G6 L 8", "L", "Anak - Anak Ekonomi"))),
+                new VehicleData("DT 9004 TA", "Dewasa Ekonomi", List.of(
+                        passenger("TEST MISMATCH SVC13 DEWASA", "L", "Dewasa Ekonomi"))));
+        List<PassengerData> pedestrians = List.of(
+                passenger("TEST BAYI L 0", "L", "PENUMPANG BAYI"),
+                passenger("TEST DEWASA P 28", "P", "PENUMPANG DEWASA"));
+        String text = text(service.generate(request(document("PKK123213ABC"), vehicles, pedestrians, List.of())));
+
+        // 3 drivers + 2 "Dewasa Ekonomi" = 5 adults (3 L, 2 P); the child and all pedestrians are left out.
+        assertTrue(text.contains("Penumpang Dewasa"), text);
+        assertTrue(text.contains("Laki-laki : 3 orang"), text);
+        assertTrue(text.contains("Perempuan : 2 orang"), text);
+        assertFalse(text.contains("Penumpang Bayi"), text);
+        assertFalse(text.matches("(?s).*Dewasa Ekonomi\\s+(Laki-laki|Perempuan) :.*"), text);
+        assertTrue(text.contains("Jumlah Penumpang Dalam Kendaraan : 6"));
+    }
+
+    @Test
     void longManifestContinuesOnNextPageWithRepeatedHeader() throws Exception {
         byte[] bytes = service.generate(request(document("PKK123213ABC"), List.of(vehicle(60)), List.of(), List.of()));
         try (PDDocument pdf = Loader.loadPDF(bytes)) {

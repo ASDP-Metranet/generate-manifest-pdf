@@ -90,7 +90,7 @@ class ManifestPdfServiceTest {
     }
 
     @Test
-    void penumpangCardListsOnlyAdultsAndInfants() throws Exception {
+    void penumpangCardListsAdultsChildrenAndInfantsButNotSeniors() throws Exception {
         VehicleData vehicle = new VehicleData("N1234QA", "IV - PENUMPANG", List.of(
                 passenger("AYAH", "L", "PENUMPANG DEWASA"),
                 passenger("ADIK BAYI", "P", "PENUMPANG BAYI"),
@@ -100,8 +100,8 @@ class ManifestPdfServiceTest {
 
         // Card titles are title case ("Penumpang Anak"); the table's Golongan column stays upper case.
         assertTrue(text.contains("Penumpang Dewasa"));
+        assertTrue(text.contains("Penumpang Anak"));
         assertTrue(text.contains("Penumpang Bayi"));
-        assertFalse(text.contains("Penumpang Anak"));
         assertFalse(text.contains("Penumpang Lansia"));
         assertTrue(text.contains("Laki-laki : 1 orang"));
         assertTrue(text.contains("Perempuan : 1 orang"));
@@ -111,16 +111,18 @@ class ManifestPdfServiceTest {
     }
 
     @Test
-    void penumpangCardShowsAdultsBeforeInfantsWhateverTheInputOrder() throws Exception {
+    void penumpangCardShowsAdultsThenChildrenThenInfantsWhateverTheInputOrder() throws Exception {
         VehicleData vehicle = new VehicleData("N1234QA", "IV - PENUMPANG", List.of(
                 passenger("ADIK BAYI", "P", "PENUMPANG BAYI"),
+                passenger("KAKAK", "L", "PENUMPANG ANAK"),
                 passenger("AYAH", "L", "PENUMPANG DEWASA")));
         String text = text(service.generate(request(document("PKK123213ABC"), List.of(vehicle), List.of(), List.of())));
 
         int adults = text.indexOf("Penumpang Dewasa");
+        int children = text.indexOf("Penumpang Anak");
         int infants = text.indexOf("Penumpang Bayi");
-        assertTrue(adults >= 0 && infants >= 0);
-        assertTrue(adults < infants, "Penumpang Dewasa harus tampil sebelum Penumpang Bayi");
+        assertTrue(adults >= 0 && children >= 0 && infants >= 0);
+        assertTrue(adults < children && children < infants, "urutan harus Dewasa, Anak, lalu Bayi");
     }
 
     @Test
@@ -133,7 +135,8 @@ class ManifestPdfServiceTest {
         assertEquals(ManifestPdfService.CardGroup.DEWASA, ManifestPdfService.cardGroup("IV - Penumpang", "IV - Penumpang"));
         assertEquals(ManifestPdfService.CardGroup.BAYI, ManifestPdfService.cardGroup("Bayi Ekonomi", "IV - Penumpang"));
         assertEquals(ManifestPdfService.CardGroup.BAYI, ManifestPdfService.cardGroup("PENUMPANG BAYI", "IV - Penumpang"));
-        assertNull(ManifestPdfService.cardGroup("Anak - Anak Ekonomi", "VI - Penumpang"));
+        assertEquals(ManifestPdfService.CardGroup.ANAK, ManifestPdfService.cardGroup("Anak - Anak Ekonomi", "VI - Penumpang"));
+        assertEquals(ManifestPdfService.CardGroup.ANAK, ManifestPdfService.cardGroup("PENUMPANG ANAK", "IV - Penumpang"));
         assertNull(ManifestPdfService.cardGroup("PENUMPANG LANSIA", "IV - Penumpang"));
         assertNull(ManifestPdfService.cardGroup("VIP", "IV - Penumpang"));
     }
@@ -157,10 +160,11 @@ class ManifestPdfServiceTest {
                 passenger("TEST DEWASA P 28", "P", "PENUMPANG DEWASA"));
         String text = text(service.generate(request(document("PKK123213ABC"), vehicles, pedestrians, List.of())));
 
-        // 3 drivers + 2 "Dewasa Ekonomi" = 5 adults (3 L, 2 P); the child and all pedestrians are left out.
-        assertTrue(text.contains("Penumpang Dewasa"), text);
-        assertTrue(text.contains("Laki-laki : 3 orang"), text);
-        assertTrue(text.contains("Perempuan : 2 orang"), text);
+        // 3 drivers + 2 "Dewasa Ekonomi" = 5 adults (3 L, 2 P), plus 1 child (L): 4 L in total.
+        // Pedestrians are left out of the card.
+        String card = text.replaceAll("\\s+", " ");
+        assertTrue(card.contains("Penumpang Dewasa Laki-laki : 3 orang Perempuan : 2 orang"), card);
+        assertTrue(card.contains("Penumpang Anak Laki-laki : 1 orang"), card);
         assertFalse(text.contains("Penumpang Bayi"), text);
         assertFalse(text.matches("(?s).*Dewasa Ekonomi\\s+(Laki-laki|Perempuan) :.*"), text);
         assertTrue(text.contains("Jumlah Penumpang Dalam Kendaraan : 6"));

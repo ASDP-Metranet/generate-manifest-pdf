@@ -202,9 +202,9 @@ public class ManifestPdfService {
     /**
      * Sorts a vehicle passenger into the PENUMPANG card by keyword, whatever the exact wording of kategori
      * ("Dewasa Ekonomi", "PENUMPANG DEWASA", ...). A driver sent with the vehicle class as kategori
-     * ("Golongan IV - Penumpang") or without kategori counts as an adult. Children (ANAK) and seniors (LANSIA)
-     * are not in the card, nor is any kategori that matches no rule; all of them still appear in the
-     * table and in the "Jumlah ..." totals.
+     * ("Golongan IV - Penumpang") or without kategori counts as an adult. Seniors (LANSIA) are not in the
+     * card, nor is any kategori that matches no rule; they still appear in the table and in the
+     * "Jumlah ..." totals.
      */
     static CardGroup cardGroup(String kategori, String vehicleGolongan) {
         String k = kategori == null ? "" : kategori.trim().toUpperCase(Locale.ROOT);
@@ -214,7 +214,10 @@ public class ManifestPdfService {
         if (k.matches(".*\\bBAYI\\b.*")) {
             return CardGroup.BAYI;
         }
-        if (k.matches(".*\\b(ANAK|LANSIA)\\b.*")) {
+        if (k.matches(".*\\bANAK\\b.*")) {
+            return CardGroup.ANAK;
+        }
+        if (k.matches(".*\\bLANSIA\\b.*")) {
             return null;
         }
         if (k.matches(".*\\bDEWASA\\b.*")) {
@@ -229,6 +232,7 @@ public class ManifestPdfService {
     /** Rows of the PENUMPANG card, in display order. */
     enum CardGroup {
         DEWASA("Penumpang Dewasa"),
+        ANAK("Penumpang Anak"),
         BAYI("Penumpang Bayi");
 
         final String label;
@@ -321,7 +325,7 @@ public class ManifestPdfService {
         List<DetailLine> lines = new ArrayList<>();
         lines.add(new DetailLine(38.2f, "PENUMPANG"));
         float maxWidth = SPLIT - 38.2f - CELL_PAD;
-        // EnumMap iterates in CardGroup order: Penumpang Dewasa first, then Penumpang Bayi.
+        // EnumMap iterates in CardGroup order: Penumpang Dewasa, Penumpang Anak, then Penumpang Bayi.
         for (Map.Entry<CardGroup, Map<String, Integer>> category : recap.passengers().entrySet()) {
             for (String line : wrap(category.getKey().label, NORMAL, FONT_SIZE, maxWidth)) {
                 lines.add(new DetailLine(38.2f, line));

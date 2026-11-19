@@ -85,7 +85,7 @@ public record ManifestRequest(
 
     public record VehicleData(
             @NotBlank @Size(max=32) String nomorKendaraan,
-            @NotBlank @Size(max=60) String golongan,
+            @NotBlank @Size(max=20) String golongan,
             @NotEmpty List<@NotNull @Valid PassengerData> passengers
     ) {}
 
